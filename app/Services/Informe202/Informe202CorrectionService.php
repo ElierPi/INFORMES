@@ -129,7 +129,19 @@ $record = &$recordIndexes['records'][$recordKey];
                 );
 
                 if ($result['aplicado'] === true) {
-                    $corrections[] = $result['detalle'];
+                    if (
+                        isset($result['detalles'])
+                        && is_array($result['detalles'])
+                    ) {
+                        foreach ($result['detalles'] as $detail) {
+                            $corrections[] = $detail;
+                        }
+                    } elseif (
+                        isset($result['detalle'])
+                        && is_array($result['detalle'])
+                    ) {
+                        $corrections[] = $result['detalle'];
+                    }
                 } elseif (
                     isset($result['pendiente'])
                     && is_array($result['pendiente'])
@@ -222,9 +234,9 @@ $this->saveWorkbook(
         array $variableColumns,
         array &$processedCells
     ): array {
-        $variable = $decision->variable;
+        $primaryVariable = $decision->variable;
 
-        if ($variable === null) {
+        if ($primaryVariable === null) {
             return [
                 'aplicado' => false,
 
@@ -244,26 +256,6 @@ $this->saveWorkbook(
             ];
         }
 
-        if (! isset($variableColumns[$variable])) {
-            return [
-                'aplicado' => false,
-
-                'pendiente' => $this->buildResult(
-                    record: $record,
-                    error: $error,
-                    decision: RuleDecision::manual(
-                        variable: $variable,
-                        currentValue:
-                            $decision->currentValue,
-                        reason:
-                            "No se encontró la columna correspondiente "
-                            . "a la variable {$variable}.",
-                        rule: self::class
-                    )
-                ),
-            ];
-        }
-
         $excelRow = (int) (
             $record['excel_row'] ?? 0
         );
@@ -276,7 +268,7 @@ $this->saveWorkbook(
                     record: $record,
                     error: $error,
                     decision: RuleDecision::manual(
-                        variable: $variable,
+                        variable: $primaryVariable,
                         currentValue:
                             $decision->currentValue,
                         reason:
@@ -288,18 +280,63 @@ $this->saveWorkbook(
             ];
         }
 
-        $column = $variableColumns[$variable];
-
-        $coordinate = "{$column}{$excelRow}";
+        /*
+         * La corrección principal siempre se aplica.
+         */
+        $changes = [
+            $primaryVariable => $decision->newValue,
+        ];
 
         /*
-         * Evita corregir dos veces exactamente la misma celda.
+         * Agrega cambios relacionados para reglas que necesitan
+         * modificar varias variables en el mismo registro.
          */
-        if (isset($processedCells[$coordinate])) {
-            return [
-                'aplicado' => false,
+        foreach (
+            $this->relatedAutomaticChanges(
+                error: $error,
+                record: $record,
+                decision: $decision
+            )
+            as $relatedVariable => $relatedValue
+        ) {
+            $changes[(int) $relatedVariable] =
+                $relatedValue;
+        }
 
-                'valido' => [
+        $details = [];
+        $validDetails = [];
+
+        foreach ($changes as $variable => $newValue) {
+            if (! isset($variableColumns[$variable])) {
+                return [
+                    'aplicado' => false,
+
+                    'pendiente' => $this->buildResult(
+                        record: $record,
+                        error: $error,
+                        decision: RuleDecision::manual(
+                            variable: $variable,
+                            currentValue:
+                                $record['variables'][$variable]
+                                ?? null,
+                            reason:
+                                "No se encontró la columna correspondiente "
+                                . "a la variable {$variable}.",
+                            rule: self::class
+                        )
+                    ),
+                ];
+            }
+
+            $column = $variableColumns[$variable];
+            $coordinate = "{$column}{$excelRow}";
+
+            /*
+             * Si otra regla ya corrigió la celda, se conserva el
+             * valor actual y no se vuelve a escribir.
+             */
+            if (isset($processedCells[$coordinate])) {
+                $validDetails[] = [
                     ...$this->buildResult(
                         record: $record,
                         error: $error,
@@ -316,32 +353,23 @@ $this->saveWorkbook(
                     ),
 
                     'celda' => $coordinate,
-                ],
-            ];
-        }
+                ];
 
-        $cell = $sheet->getCell($coordinate);
+                continue;
+            }
 
-        $oldValue = $cell->getValue();
+            $cell = $sheet->getCell($coordinate);
+            $oldValue = $cell->getValue();
 
-        $newValue = $decision->newValue;
+            if ($this->valuesAreEqual(
+                $oldValue,
+                $newValue
+            )) {
+                $processedCells[$coordinate] = true;
+                $record['variables'][$variable] =
+                    $newValue;
 
-        if ($this->valuesAreEqual(
-            $oldValue,
-            $newValue
-        )) {
-            $processedCells[$coordinate] = true;
-
-            /*
-             * Actualiza también el registro leído.
-             */
-            $record['variables'][$variable] =
-                $newValue;
-
-            return [
-                'aplicado' => false,
-
-                'valido' => [
+                $validDetails[] = [
                     ...$this->buildResult(
                         record: $record,
                         error: $error,
@@ -357,67 +385,55 @@ $this->saveWorkbook(
                     ),
 
                     'celda' => $coordinate,
-                ],
-            ];
-        }
+                ];
 
-        /*
-         * Escribe el valor según el tipo oficial del campo.
-         */
-        $this->writeValue(
-            sheet: $sheet,
-            coordinate: $coordinate,
-            variable: $variable,
-            value: $newValue
-        );
+                continue;
+            }
 
-        /*
-         * Verificación inmediata de escritura.
-         */
-        $savedValue = $sheet
-            ->getCell($coordinate)
-            ->getValue();
+            $this->writeValue(
+                sheet: $sheet,
+                coordinate: $coordinate,
+                variable: $variable,
+                value: $newValue
+            );
 
-        if (! $this->valuesAreEqual(
-            $savedValue,
-            $newValue
-        )) {
-            return [
-                'aplicado' => false,
+            $savedValue = $sheet
+                ->getCell($coordinate)
+                ->getValue();
 
-                'pendiente' => $this->buildResult(
-                    record: $record,
-                    error: $error,
-                    decision: RuleDecision::manual(
-                        variable: $variable,
-                        currentValue: $oldValue,
-                        reason:
-                            "No fue posible escribir el nuevo valor "
-                            . "en la celda {$coordinate}.",
-                        rule: self::class
-                    )
-                ),
-            ];
-        }
+            if (! $this->valuesAreEqual(
+                $savedValue,
+                $newValue
+            )) {
+                return [
+                    'aplicado' => false,
 
-        /*
-         * Actualiza el registro en memoria para que una regla posterior
-         * vea el valor recién corregido.
-         */
-        $record['variables'][$variable] =
-            $newValue;
+                    'pendiente' => $this->buildResult(
+                        record: $record,
+                        error: $error,
+                        decision: RuleDecision::manual(
+                            variable: $variable,
+                            currentValue: $oldValue,
+                            reason:
+                                "No fue posible escribir el nuevo valor "
+                                . "en la celda {$coordinate}.",
+                            rule: self::class
+                        )
+                    ),
+                ];
+            }
 
-        $processedCells[$coordinate] = true;
+            $record['variables'][$variable] =
+                $newValue;
 
-        $definition = config(
-            "resolucion202.fields.{$variable}",
-            []
-        );
+            $processedCells[$coordinate] = true;
 
-        return [
-            'aplicado' => true,
+            $definition = config(
+                "resolucion202.fields.{$variable}",
+                []
+            );
 
-            'detalle' => [
+            $details[] = [
                 'codigo' =>
                     $error['codigo'] ?? null,
 
@@ -461,10 +477,121 @@ $this->saveWorkbook(
                 'edad' =>
                     $record['age'] ?? null,
 
+                'mensaje_eps' =>
+                    $error['mensaje'] ?? null,
+
                 'estado' =>
                     'automatic',
-            ],
+            ];
+        }
+
+        if ($details !== []) {
+            return [
+                'aplicado' => true,
+                'detalles' => $details,
+            ];
+        }
+
+        if ($validDetails !== []) {
+            return [
+                'aplicado' => false,
+                'valido' => $validDetails[0],
+            ];
+        }
+
+        return [
+            'aplicado' => false,
+
+            'pendiente' => $this->buildResult(
+                record: $record,
+                error: $error,
+                decision: RuleDecision::manual(
+                    variable: $primaryVariable,
+                    currentValue:
+                        $decision->currentValue,
+                    reason:
+                        'La regla automática no produjo cambios '
+                        . 'aplicables en el registro.',
+                    rule: self::class
+                )
+            ),
         ];
+    }
+
+    /**
+     * Devuelve cambios relacionados para reglas que deben actualizar
+     * más de una variable en el mismo registro.
+     *
+     * @return array<int, mixed>
+     */
+    private function relatedAutomaticChanges(
+        array $error,
+        array $record,
+        RuleDecision $decision
+    ): array {
+        $code = str_pad(
+            (string) ($error['codigo'] ?? ''),
+            3,
+            '0',
+            STR_PAD_LEFT
+        );
+
+        /*
+         * Error 309 de Proteger:
+         *
+         * 95  = Resultado de HDL
+         * 111 = Fecha de toma de HDL
+         *
+         * Proteger reporta normalmente el error sobre la variable 95,
+         * pero exige que ambas variables queden como No aplica.
+         */
+        if ($code === '309') {
+            $ageMonths = $record['age']['months'] ?? null;
+            $ageYears = $record['age']['years'] ?? null;
+
+            $risk = trim(
+                (string) (
+                    $record['variables'][114]
+                    ?? ''
+                )
+            );
+
+            if (is_numeric($ageMonths)) {
+                $isUnderTwentyNine =
+                    (float) $ageMonths < 348;
+            } elseif (is_numeric($ageYears)) {
+                $isUnderTwentyNine =
+                    (float) $ageYears < 29;
+            } else {
+                $isUnderTwentyNine = false;
+            }
+
+            /*
+             * Menor de 29 años y sin riesgo:
+             * HDL no aplica.
+             */
+            if (
+                $isUnderTwentyNine
+                && $risk === '0'
+            ) {
+                return [
+                    95 => 0,
+                    111 => '1845-01-01',
+                ];
+            }
+
+            /*
+             * Tiene 29 años o más, o presenta riesgo:
+             * HDL sí aplica. Sin dato clínico real:
+             * resultado 998 y fecha 1800-01-01.
+             */
+            return [
+                95 => 998,
+                111 => '1800-01-01',
+            ];
+        }
+
+        return [];
     }
 
     /**

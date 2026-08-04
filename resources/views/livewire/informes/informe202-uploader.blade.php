@@ -35,7 +35,7 @@
 
                 <select
                     id="eps"
-                    wire:model="eps"
+                    wire:model.live="eps"
                     class="w-full rounded-lg border border-zinc-300
                            bg-white px-3 py-2 text-sm
                            dark:border-zinc-600 dark:bg-zinc-800
@@ -47,6 +47,12 @@
                     <option value="dusakawi">
                         Dusakawi
                     </option>
+                    <option value="familiar_colombia">
+                        Familiar de Colombia
+                    </option>
+                    <option value="sanitas">
+                        Sanitas
+                    </option>
                 </select>
 
                 @error('eps')
@@ -55,6 +61,34 @@
                     </p>
                 @enderror
             </div>
+
+            @if (in_array($eps, ['familiar', 'sanitas'], true))
+                <div class="md:col-span-1 xl:col-span-3">
+                    <div class="rounded-xl border border-violet-200 bg-violet-50 p-5
+                                dark:border-violet-800 dark:bg-violet-950/30">
+                        <h2 class="font-semibold text-violet-900 dark:text-violet-100">
+                            Corrector de Familiar de Colombia
+                        </h2>
+
+                        <p class="mt-2 text-sm leading-6 text-violet-800
+                                  dark:text-violet-300">
+                            Este corrector recibe el ZIP original cargado y el
+                            Excel de errores generado por SIGIRES.
+                        </p>
+
+<a
+    href="{{ route('informes.resolucion-202.corregir-familiar') }}"
+    wire:navigate
+    class="inline-flex items-center justify-center rounded-lg
+           bg-violet-600 px-4 py-2 text-sm font-semibold text-white
+           hover:bg-violet-700"
+>
+    Abrir corrector de
+    {{ $eps === 'sanitas' ? 'Sanitas' : 'Familiar de Colombia' }}
+</a>
+                    </div>
+                </div>
+            @else
 
             {{-- Fecha de corte --}}
             <div>
@@ -157,9 +191,11 @@
                 @enderror
             </div>
 
+            @endif
         </div>
 
-        {{-- Acciones --}}
+        @if ($eps !== 'familiar_colombia')
+ {{-- Acciones --}}
  {{-- Acciones --}}
 <div class="mt-6 flex flex-wrap items-center gap-3">
 
@@ -207,6 +243,8 @@
     @endif
 
 </div>
+
+@endif
     </form>
     @if ($procesando)
     <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">

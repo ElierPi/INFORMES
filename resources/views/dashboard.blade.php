@@ -11,6 +11,25 @@
                 'icon' => 'document',
             ],
             [
+    'name' => 'Resolución 0256',
+    'description' => 'Validación del reporte de indicadores de calidad en salud.',
+    'route' => 'informes.resolucion-0256',
+    'status' => 'Activo',
+    'enabled' => true,
+    'accent' => 'blue',
+    'icon' => 'document',
+],
+
+[
+    'name' => 'Resolución 1552',
+    'description' => 'Carga un Excel, valida la información y genera el TXT y ZIP oficial de la Resolución 1552.',
+    'route' => 'informes.resolucion-1552',
+    'status' => 'Activo',
+    'enabled' => true,
+    'accent' => 'emerald',
+    'icon' => 'document',
+],
+            [
                 'name' => 'Gestantes SIGIRES',
                 'description' => 'Accede al módulo de gestantes para corregir, validar y generar archivos oficiales.',
                 'route' => 'informes.gestantes',

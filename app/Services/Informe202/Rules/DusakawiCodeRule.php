@@ -88,7 +88,7 @@ public function supports(
         return true;
     }
 
-if (in_array($variable, [5, 6, 7, 8, 95, 104], true)) {
+if (in_array($variable, [5, 6, 7, 8, 19, 95, 104, 111], true)) {
     return true;
 }
 
@@ -203,6 +203,148 @@ if (
             );
         }
 
+        /*
+         * Proteger: consumo de tabaco en menores de 12 años.
+         *
+         * Variable 19 = Consumo de tabaco.
+         * En menores de 12 años debe registrarse 98, No aplica.
+         */
+        if ($variable === 19) {
+            $ageMonths = $record['age']['months'] ?? null;
+            $ageYears = $record['age']['years'] ?? null;
+
+            $isUnderTwelve = is_numeric($ageMonths)
+                ? (float) $ageMonths < 144
+                : (
+                    is_numeric($ageYears)
+                    && (float) $ageYears < 12
+                );
+
+            if ($isUnderTwelve) {
+                return $this->automaticOrValid(
+                    variable: 19,
+                    currentValue: $currentValue,
+                    newValue: 98,
+                    reason:
+                        'La persona es menor de 12 años. '
+                        . 'El consumo de tabaco debe registrarse '
+                        . 'como 98, No aplica.'
+                );
+            }
+        }
+
+        /*
+         * Proteger - Error 309:
+         *
+         * 95  = Resultado de HDL
+         * 111 = Fecha de toma de HDL
+         * 114 = Clasificación del riesgo cardiovascular
+         *
+         * En menores de 29 años sin riesgo cardiovascular
+         * identificado, el bloque HDL debe quedar como No aplica:
+         *
+         * 95  = 0
+         * 111 = 1845-01-01
+         *
+         * La regla se reconoce tanto por el código 309 como por
+         * cualquiera de las dos variables relacionadas.
+         */
+        if (
+            $code === '309'
+            || in_array($variable, [95, 111], true)
+        ) {
+            $variables = $record['variables'] ?? [];
+
+            $risk = trim(
+                (string) ($variables[114] ?? '')
+            );
+
+            $ageMonths = $record['age']['months'] ?? null;
+            $ageYears = $record['age']['years'] ?? null;
+
+            $isUnderTwentyNine = is_numeric($ageMonths)
+                ? (float) $ageMonths < 348
+                : (
+                    is_numeric($ageYears)
+                    && (float) $ageYears < 29
+                );
+
+            if (
+                $isUnderTwentyNine
+                && $risk === '0'
+            ) {
+                /*
+                 * Proteger suele reportar el Error 309 sobre la
+                 * variable 95. En ese caso se corrige el resultado.
+                 *
+                 * Si también reporta la variable 111, se corrige la
+                 * fecha relacionada.
+                 */
+                if ($variable === 111) {
+                    return $this->automaticOrValid(
+                        variable: 111,
+                        currentValue: $currentValue,
+                        newValue: self::NO_APLICA_DATE,
+                        reason:
+                            'Error 309 de Proteger: la persona es menor '
+                            . 'de 29 años y no tiene riesgo cardiovascular '
+                            . 'identificado. La fecha de toma de HDL debe '
+                            . 'registrarse como 1845-01-01, No aplica.'
+                    );
+                }
+
+                return $this->automaticOrValid(
+                    variable: 95,
+                    currentValue: $currentValue,
+                    newValue: 0,
+                    reason:
+                        'Error 309 de Proteger: la persona es menor '
+                        . 'de 29 años y no tiene riesgo cardiovascular '
+                        . 'identificado. El resultado de HDL debe '
+                        . 'registrarse como 0, No aplica.'
+                );
+            }
+
+            /*
+             * Si el Error 309 llegó pero no se puede confirmar la edad
+             * o la ausencia de riesgo, no se oculta como válido.
+             */
+            if ($code === '309') {
+                /*
+                 * Si no es menor de 29 años sin riesgo, entonces HDL sí
+                 * aplica. Como no existe una fecha ni resultado clínico
+                 * real disponible, se usa el patrón Sin dato:
+                 *
+                 * 95  = 998
+                 * 111 = 1800-01-01
+                 */
+                if ($variable === 111) {
+                    return $this->automaticOrValid(
+                        variable: 111,
+                        currentValue: $currentValue,
+                        newValue: '1800-01-01',
+                        reason:
+                            'Error 309 de Proteger: la persona tiene '
+                            . '29 años o más, o presenta riesgo '
+                            . 'cardiovascular. La toma de HDL sí aplica; '
+                            . 'sin fecha real disponible se registra '
+                            . '1800-01-01, Sin dato.'
+                    );
+                }
+
+                return $this->automaticOrValid(
+                    variable: 95,
+                    currentValue: $currentValue,
+                    newValue: 998,
+                    reason:
+                        'Error 309 de Proteger: la persona tiene '
+                        . '29 años o más, o presenta riesgo '
+                        . 'cardiovascular. El HDL sí aplica; sin '
+                        . 'resultado clínico disponible se registra 998.'
+                );
+            }
+        }
+
         if ($variable === 95) {
             return $this->normalizeHdlResult(
                 variable: $variable,
@@ -222,14 +364,7 @@ if (
 
         return match ($code) {
 
-            '002' => $this->protegerCodeTwo(
-                variable: $variable,
-                currentValue: $currentValue,
-                record: $record,
-                error: $error
-            ),
-
-            '017' => $this->protegerMiniMentalWithMissingDate(
+            '309' => $this->hdlNoAplicaPorEdad(
                 variable: $variable,
                 currentValue: $currentValue,
                 record: $record
@@ -309,12 +444,6 @@ if (
                 currentValue: $currentValue,
                 record: $record
             ),
-            '250' => $this->normalizeVihDateResult(
-                variable: $variable,
-                currentValue: $currentValue,
-                record: $record
-            ),
-
             '244' => $this->normalizeNonPregnantFields(
                  variable: $variable,
                  currentValue: $currentValue,
@@ -366,12 +495,6 @@ if (
             ),
 
             '542' => $this->auditoryNeonatalBlock(
-                variable: $variable,
-                currentValue: $currentValue,
-                record: $record
-            ),
-
-            '285' => $this->protegerCervicalSampleQuality(
                 variable: $variable,
                 currentValue: $currentValue,
                 record: $record
@@ -583,29 +706,28 @@ if (
                 label: 'hierro'
             ),
 
-            '1111' => $this->normalizeIdentificationTypeByAge(
-                variable: $variable,
-                currentValue: $currentValue,
-                record: $record
-            ),
-
             '143' => $this->protegerContraceptionCounselingByAge(
                 variable: $variable,
                 currentValue: $currentValue,
                 record: $record
             ),
 
-            '173' => $this->protegerVisualAcuityDateByResults(
+            '226' => $this->protegerOralHealthNoAplica(
                 variable: $variable,
                 currentValue: $currentValue,
                 record: $record
             ),
 
-            '226', '343' => $this->protegerOralHealthCop(
+            '343' => $this->protegerOralHealthCopWithoutVisit(
                 variable: $variable,
                 currentValue: $currentValue,
                 record: $record
             ),
+            '226', '343' => $this->protegerOralHealthCop(
+                variable: $variable,
+                currentValue: $currentValue,
+                record: $record
+),
 
             default => null,
         };
@@ -2245,6 +2367,71 @@ return $this->automaticOrValid(
             . 'Como no existe información suficiente para clasificarlo '
             . 'como alto, bajo o moderado, se registró 21, '
             . 'Riesgo no evaluado.'
+    );
+}
+
+private function hdlNoAplicaPorEdad(
+    int $variable,
+    mixed $currentValue,
+    array $record
+): ?RuleDecision {
+    if (! in_array($variable, [95, 111], true)) {
+        return null;
+    }
+
+    $variables = $record['variables'] ?? [];
+
+    $risk = trim(
+        (string) ($variables[114] ?? '')
+    );
+
+    $ageMonths = $record['age']['months'] ?? null;
+    $ageYears = $record['age']['years'] ?? null;
+
+    if (is_numeric($ageMonths)) {
+        $isUnderTwentyNine = (float) $ageMonths < 348;
+        $displayAge = round((float) $ageMonths / 12, 2);
+    } elseif (is_numeric($ageYears)) {
+        $isUnderTwentyNine = (float) $ageYears < 29;
+        $displayAge = round((float) $ageYears, 2);
+    } else {
+        return $this->manual(
+            variable: $variable,
+            currentValue: $currentValue,
+            reason:
+                'No fue posible calcular la edad para resolver '
+                . 'el Error 309 de HDL.'
+        );
+    }
+
+    if (
+        ! $isUnderTwentyNine
+        || $risk !== '0'
+    ) {
+        return $this->manual(
+            variable: $variable,
+            currentValue: $currentValue,
+            reason:
+                "La persona tiene aproximadamente {$displayAge} años "
+                . 'o la variable 114 no está registrada en 0. '
+                . 'No es seguro aplicar automáticamente No aplica '
+                . 'al bloque HDL.'
+        );
+    }
+
+    $target = $variable === 111
+        ? self::NO_APLICA_DATE
+        : 0;
+
+    return $this->automaticOrValid(
+        variable: $variable,
+        currentValue: $currentValue,
+        newValue: $target,
+        reason:
+            "La persona tiene aproximadamente {$displayAge} años "
+            . 'y la variable 114 está registrada como 0. '
+            . 'El Error 309 exige registrar el bloque HDL '
+            . 'como No aplica.'
     );
 }
 
@@ -4829,6 +5016,111 @@ private function protegerContraceptionCounselingByAge(
     );
 }
 
+private function protegerOralHealthNoAplica(
+    int $variable,
+    mixed $currentValue,
+    array $record
+): ?RuleDecision {
+    if (! in_array($variable, [76, 102], true)) {
+        return null;
+    }
+
+    $cop = trim((string) ($record['variables'][102] ?? ''));
+
+    if ($cop !== '0') {
+        return $this->manual(
+            variable: $variable,
+            currentValue: $currentValue,
+            reason:
+                'El Error226 de Proteger exige que el COP esté registrado '
+                . 'como 0 para normalizar la fecha de atención en salud '
+                . 'bucal como No aplica.'
+        );
+    }
+
+    $target = $variable === 76
+        ? self::NO_APLICA_DATE
+        : 0;
+
+    return $this->automaticOrValid(
+        variable: $variable,
+        currentValue: $currentValue,
+        newValue: $target,
+        reason:
+            'En Proteger, el COP por persona está registrado como 0, '
+            . 'No aplica. La fecha de atención en salud bucal debe quedar '
+            . 'como 1845-01-01 y el COP debe conservarse en 0.'
+    );
+}
+
+private function protegerOralHealthCopWithoutVisit(
+    int $variable,
+    mixed $currentValue,
+    array $record
+): ?RuleDecision {
+    if (! in_array($variable, [76, 102], true)) {
+        return null;
+    }
+
+    $date = trim((string) ($record['variables'][76] ?? ''));
+    $ageMonths = $record['age']['months'] ?? null;
+    $ageYears = $record['age']['years'] ?? null;
+
+    if (is_numeric($ageMonths)) {
+        $isSixMonthsOrOlder = (float) $ageMonths >= 6;
+    } elseif (is_numeric($ageYears)) {
+        $isSixMonthsOrOlder = (float) $ageYears >= 0.5;
+    } else {
+        return $this->manual(
+            variable: $variable,
+            currentValue: $currentValue,
+            reason:
+                'No fue posible calcular la edad para validar el COP '
+                . 'por persona reportado por Proteger.'
+        );
+    }
+
+    if (! $isSixMonthsOrOlder) {
+        $target = $variable === 76
+            ? self::NO_APLICA_DATE
+            : 0;
+
+        return $this->automaticOrValid(
+            variable: $variable,
+            currentValue: $currentValue,
+            newValue: $target,
+            reason:
+                'La persona es menor de 6 meses. La atención en salud '
+                . 'bucal y el COP deben registrarse como No aplica.'
+        );
+    }
+
+    if (! in_array($date, self::NO_REALIZATION_DATES, true)) {
+        return $this->manual(
+            variable: $variable,
+            currentValue: $currentValue,
+            reason:
+                'El Error343 de Proteger exige un comodín de no realización '
+                . 'o sin dato en la fecha de salud bucal. La fecha actual no '
+                . 'coincide con los comodines reconocidos.'
+        );
+    }
+
+    $target = $variable === 76
+        ? $date
+        : 0;
+
+    return $this->automaticOrValid(
+        variable: $variable,
+        currentValue: $currentValue,
+        newValue: $target,
+        reason:
+            'En Proteger, desde los 6 meses, cuando la fecha de atención '
+            . 'en salud bucal contiene un comodín de no realización o sin '
+            . 'dato, el COP por persona debe registrarse como 0.'
+    );
+}
+
 private function protegerOralHealthCop(
     int $variable,
     mixed $currentValue,
@@ -5081,404 +5373,6 @@ private function protegerOralHealthCop(
             'La combinación de edad, fecha de atención en salud '
             . 'bucal y COP por persona no coincide con los casos '
             . 'automáticos reconocidos.'
-    );
-}
-
-
-private function protegerCodeTwo(
-    int $variable,
-    mixed $currentValue,
-    array $record,
-    array $error
-): ?RuleDecision {
-    $message = Str::of(
-        (string) (
-            ($error['campo'] ?? '')
-            . ' '
-            . ($error['mensaje'] ?? '')
-        )
-    )
-        ->ascii()
-        ->lower()
-        ->squish()
-        ->toString();
-
-    /*
-     * Código de habilitación de la IPS primaria.
-     * Cuando está vacío, la Resolución permite 999
-     * como código desconocido.
-     */
-    if (
-        $variable === 2
-        && str_contains($message, 'codigo reps')
-    ) {
-        $current = trim((string) $currentValue);
-
-        if ($current !== '') {
-            return RuleDecision::valid(
-                variable: 2,
-                currentValue: $currentValue,
-                reason:
-                    'El código de habilitación de la IPS primaria '
-                    . 'ya contiene un valor.',
-                rule: self::class
-            );
-        }
-
-        return $this->automaticOrValid(
-            variable: 2,
-            currentValue: $currentValue,
-            newValue: 999,
-            reason:
-                'Proteger reportó vacío el código de habilitación '
-                . 'de la IPS primaria. Se registró 999, código '
-                . 'permitido cuando el dato es desconocido.'
-        );
-    }
-
-    /*
-     * Cuando no existen coincidencias en BDUA o BDEX,
-     * se ajusta únicamente el tipo de identificación según la edad.
-     * El número del documento se conserva.
-     */
-    if (
-        $variable === 3
-        && (
-            str_contains($message, 'identificacion afiliado')
-            || str_contains($message, 'bdua')
-            || str_contains($message, 'bdex')
-        )
-    ) {
-        return $this->normalizeIdentificationTypeByAge(
-            variable: 3,
-            currentValue: $currentValue,
-            record: $record
-        );
-    }
-
-    return null;
-}
-
-private function protegerCervicalSampleQuality(
-    int $variable,
-    mixed $currentValue,
-    array $record
-): ?RuleDecision {
-    /*
-     * Bloque de tamizaje de cáncer de cuello uterino:
-     *
-     * 86 = Tipo de tamizaje
-     * 87 = Fecha de tamizaje
-     * 88 = Resultado del tamizaje
-     * 89 = Calidad de la muestra
-     * 90 = Código de habilitación de la IPS
-     *
-     * Para el Error285 de Proteger se toma como referencia
-     * la estructura válida observada en el consecutivo 22:
-     *
-     * 86 = 21
-     * 87 = 1800-01-01
-     * 88 = 21
-     * 89 = 999
-     * 90 = código REPS real de la IPS primaria (variable 2)
-     */
-    if (! in_array(
-        $variable,
-        [86, 87, 88, 89, 90],
-        true
-    )) {
-        return null;
-    }
-
-    $variables = $record['variables'] ?? [];
-
-    $primaryIpsCode = trim(
-        (string) ($variables[2] ?? '')
-    );
-
-    if (! preg_match('/^\d{12}$/', $primaryIpsCode)) {
-        return $this->manual(
-            variable: $variable,
-            currentValue: $currentValue,
-            reason:
-                'El Error285 requiere normalizar todo el bloque de '
-                . 'tamizaje cervical, pero la variable 2 no contiene '
-                . 'un código REPS válido de 12 dígitos para registrar '
-                . 'en la variable 90.'
-        );
-    }
-
-    $targetValue = match ($variable) {
-        86 => 21,
-        87 => '1800-01-01',
-        88 => 21,
-        89 => 999,
-        90 => $primaryIpsCode,
-    };
-
-    return $this->automaticOrValid(
-        variable: $variable,
-        currentValue: $currentValue,
-        newValue: $targetValue,
-        reason:
-            'Proteger reportó inconsistencia en el bloque de tamizaje '
-            . 'de cáncer de cuello uterino. Se tomó como referencia '
-            . 'la estructura válida del consecutivo 22 y se normalizó '
-            . 'el bloque como: variable 86 igual a 21, variable 87 '
-            . 'igual a 1800-01-01, variable 88 igual a 21, variable 89 '
-            . 'igual a 999 y variable 90 igual al código REPS real '
-            . "de la IPS primaria ({$primaryIpsCode})."
-    );
-}
-
-
-
-
-
-private function protegerVisualAcuityDateByResults(
-    int $variable,
-    mixed $currentValue,
-    array $record
-): ?RuleDecision {
-    if ($variable !== 62) {
-        return null;
-    }
-
-    $leftResult = trim(
-        (string) ($record['variables'][27] ?? '')
-    );
-
-    $rightResult = trim(
-        (string) ($record['variables'][28] ?? '')
-    );
-
-    /*
-     * Si ambos resultados no aplican, la fecha también debe
-     * registrarse como No aplica.
-     */
-    if ($leftResult === '0' && $rightResult === '0') {
-        return $this->automaticOrValid(
-            variable: 62,
-            currentValue: $currentValue,
-            newValue: self::NO_APLICA_DATE,
-            reason:
-                'Las variables de agudeza visual de ambos ojos están '
-                . 'registradas como 0, No aplica. La fecha de valoración '
-                . 'también debe quedar en 1845-01-01.'
-        );
-    }
-
-    /*
-     * Si ambos resultados están como no evaluados, la fecha
-     * debe quedar como sin dato.
-     */
-    if ($leftResult === '21' && $rightResult === '21') {
-        return $this->automaticOrValid(
-            variable: 62,
-            currentValue: $currentValue,
-            newValue: '1800-01-01',
-            reason:
-                'Las variables de agudeza visual de ambos ojos están '
-                . 'registradas como 21, no evaluado. La fecha debe '
-                . 'quedar en 1800-01-01.'
-        );
-    }
-
-    return RuleDecision::valid(
-        variable: 62,
-        currentValue: $currentValue,
-        reason:
-            'La fecha de valoración de agudeza visual no requiere '
-            . 'una corrección automática para la combinación actual.',
-        rule: self::class
-    );
-}
-
-private function protegerMiniMentalWithMissingDate(
-    int $variable,
-    mixed $currentValue,
-    array $record
-): ?RuleDecision {
-    if (! in_array($variable, [16, 52], true)) {
-        return null;
-    }
-
-    $result = trim(
-        (string) ($record['variables'][16] ?? '')
-    );
-
-    $date = trim(
-        (string) ($record['variables'][52] ?? '')
-    );
-
-    /*
-     * Cuando existe resultado 4 o 5, pero no hay fecha real,
-     * no se conserva el resultado clínico sin respaldo temporal.
-     * Se normaliza como no evaluado.
-     */
-    if (
-        in_array($result, ['4', '5'], true)
-        && ! $this->isRealReportDate($date)
-    ) {
-        $target = $variable === 16
-            ? 21
-            : '1800-01-01';
-
-        return $this->automaticOrValid(
-            variable: $variable,
-            currentValue: $currentValue,
-            newValue: $target,
-            reason:
-                'Se registró un resultado Mini-Mental de 4 o 5, '
-                . 'pero la fecha de valoración integral no es real. '
-                . 'El bloque se normalizó a resultado 21 y fecha '
-                . '1800-01-01.'
-        );
-    }
-
-    if (
-        $this->isRealReportDate($date)
-        && in_array($result, ['4', '5'], true)
-    ) {
-        return RuleDecision::valid(
-            variable: $variable,
-            currentValue: $currentValue,
-            reason:
-                'El resultado Mini-Mental y la fecha de valoración '
-                . 'integral son coherentes.',
-            rule: self::class
-        );
-    }
-
-    return $this->normalizeMiniMentalBlock(
-        variable: $variable,
-        currentValue: $currentValue,
-        record: $record
-    );
-}
-
-
-private function normalizeVihDateResult(
-    int $variable,
-    mixed $currentValue,
-    array $record
-): ?RuleDecision {
-    /*
-     * Variable 82 = Fecha de toma de prueba para VIH.
-     * Variable 83 = Resultado de prueba para VIH.
-     *
-     * Cuando existe una fecha real pero el resultado está vacío,
-     * en 0 o en 21, no es seguro inventar un resultado clínico.
-     * Se normaliza el bloque como no realizado/sin dato:
-     *
-     * 82 = 1800-01-01
-     * 83 = 21
-     */
-    if (! in_array($variable, [82, 83], true)) {
-        return null;
-    }
-
-    $variables = $record['variables'] ?? [];
-
-    $date = trim(
-        (string) ($variables[82] ?? '')
-    );
-
-    $result = trim(
-        (string) ($variables[83] ?? '')
-    );
-
-    $hasRealDate = $this->isRealReportDate($date);
-
-    /*
-     * Valores clínicos informados:
-     * se conserva la fecha real y el resultado.
-     */
-    if (
-        $hasRealDate
-        && ! in_array($result, ['', '0', '21'], true)
-    ) {
-        return RuleDecision::valid(
-            variable: $variable,
-            currentValue: $currentValue,
-            reason:
-                'La fecha de prueba para VIH es real y el resultado '
-                . 'contiene un valor informado.',
-            rule: self::class
-        );
-    }
-
-    /*
-     * Fecha real sin resultado clínico utilizable:
-     * no se inventa positivo, negativo ni indeterminado.
-     */
-    if (
-        $hasRealDate
-        && in_array($result, ['', '0', '21'], true)
-    ) {
-        $targetValue = match ($variable) {
-            82 => '1800-01-01',
-            83 => 21,
-        };
-
-        return $this->automaticOrValid(
-            variable: $variable,
-            currentValue: $currentValue,
-            newValue: $targetValue,
-            reason:
-                'Existe una fecha real de toma de prueba para VIH, '
-                . 'pero no existe un resultado clínico utilizable. '
-                . 'Como no es seguro inventar el resultado, el bloque '
-                . 'se normalizó a fecha 1800-01-01 y resultado 21.'
-        );
-    }
-
-    /*
-     * Fecha sin dato:
-     * el resultado debe quedar igualmente en 21.
-     */
-    if ($date === '1800-01-01') {
-        $targetValue = match ($variable) {
-            82 => '1800-01-01',
-            83 => 21,
-        };
-
-        return $this->automaticOrValid(
-            variable: $variable,
-            currentValue: $currentValue,
-            newValue: $targetValue,
-            reason:
-                'La fecha de prueba para VIH está registrada como '
-                . '1800-01-01, sin dato. El resultado debe quedar en 21.'
-        );
-    }
-
-    /*
-     * No aplica:
-     * ambas variables deben conservarse como No aplica.
-     */
-    if ($date === self::NO_APLICA_DATE) {
-        $targetValue = match ($variable) {
-            82 => self::NO_APLICA_DATE,
-            83 => 0,
-        };
-
-        return $this->automaticOrValid(
-            variable: $variable,
-            currentValue: $currentValue,
-            newValue: $targetValue,
-            reason:
-                'La fecha de prueba para VIH está registrada como '
-                . '1845-01-01, No aplica. El resultado debe quedar en 0.'
-        );
-    }
-
-    return $this->manual(
-        variable: $variable,
-        currentValue: $currentValue,
-        reason:
-            'La combinación de fecha y resultado de la prueba para VIH '
-            . 'no coincide con los casos automáticos reconocidos.'
     );
 }
 

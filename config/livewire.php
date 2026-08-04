@@ -128,15 +128,19 @@ return [
     |
     */
 
-    'temporary_file_upload' => [
-    'disk' => 'local',
+'temporary_file_upload' => [
+    'disk' => null,
+
     'rules' => [
         'required',
         'file',
-        'max:30720',
+        'max:51200',
     ],
-    'directory' => 'livewire-tmp',
+
+    'directory' => null,
+
     'middleware' => null,
+
     'preview_mimes' => [
         'png',
         'gif',
@@ -155,7 +159,9 @@ return [
         'webp',
         'wma',
     ],
-    'max_upload_time' => 30,
+
+    'max_upload_time' => 10,
+
     'cleanup' => true,
 ],
 
