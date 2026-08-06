@@ -407,6 +407,177 @@ final class FamiliarColombiaCorrectionService
         $newValue = $error['new_value'] ?? null;
 
         /*
+         * Reglas de cierre identificadas en logs (13).xls de
+         * Familiar de Colombia.
+         *
+         * Se ejecutan antes del motor general porque varias corrigen
+         * bloques de variables relacionadas o convierten texto clínico
+         * a los códigos permitidos por la Resolución 202.
+         */
+
+        /*
+         * Variable 6: SIGIRES exige un valor. Cuando el segundo
+         * apellido/nombre no fue informado, se utiliza el valor de
+         * respaldo definido en el catálogo del informe.
+         */
+        if (
+            $type === 'CE'
+            && $variable === 6
+            && trim((string) ($record[6] ?? '')) === ''
+        ) {
+            return [
+                6 => (string) config(
+                    'resolucion202.fields.6.fallback',
+                    'NONE'
+                ),
+            ];
+        }
+
+        /*
+         * Tacto rectal en hombres menores de 40 años:
+         * 22 = resultado No aplica
+         * 64 = fecha No aplica
+         */
+        if (
+            $variable === 22
+            && str_contains($description, 'hombre menor de 40')
+        ) {
+            return [
+                22 => '0',
+                64 => '1845-01-01',
+            ];
+        }
+
+        /*
+         * Familiar puede devolver una descripción clínica completa en
+         * la variable 22. Solo se codifica cuando el texto permite una
+         * deducción inequívoca.
+         */
+        if (
+            $type === 'CE'
+            && $variable === 22
+        ) {
+            $rectalResult = $this->normalizeRectalExamResult(
+                (string) ($record[22] ?? '')
+            );
+
+            if ($rectalResult !== null) {
+                return [
+                    22 => $rectalResult,
+                ];
+            }
+        }
+
+        /*
+         * Resultado de VIH textual:
+         * NEGATIVO / NO REACTIVO = 5
+         * POSITIVO / REACTIVO = 4
+         */
+        if (
+            $type === 'CE'
+            && $variable === 83
+        ) {
+            $hivResult = $this->normalizeHivResult(
+                (string) ($record[83] ?? '')
+            );
+
+            if ($hivResult !== null) {
+                return [
+                    83 => $hivResult,
+                ];
+            }
+        }
+
+        /*
+         * Salud bucal:
+         * antes de 6 meses no aplica; desde los 6 meses aplica,
+         * aunque no exista una atención registrada.
+         */
+        if (
+            $type === 'CE'
+            && $variable === 76
+            && str_contains($description, 'salud bucal')
+        ) {
+            $oralAgeMonths = $this->ageMonths(
+                $record,
+                $cutoffDate
+            );
+
+            if ($oralAgeMonths === null) {
+                return null;
+            }
+
+            return $oralAgeMonths < 6
+                ? [
+                    76 => '1845-01-01',
+                    102 => '0',
+                ]
+                : [
+                    76 => '1800-01-01',
+                    102 => '21',
+                ];
+        }
+
+        /*
+         * Tamizaje de cáncer de cuello uterino:
+         * si se reportó un tipo real (1 a 4) pero la fecha quedó como
+         * no realizada, no se inventa una fecha clínica. Se normaliza
+         * todo el bloque al patrón permitido de riesgo no evaluado.
+         */
+        if (
+            $type === 'CE'
+            && $variable === 87
+            && str_contains(
+                $description,
+                'debe registrar fecha tamizaje cancer de cuello uterino'
+            )
+        ) {
+            return [
+                86 => '21',
+                87 => '1800-01-01',
+                88 => '21',
+                89 => '999',
+                90 => '999',
+            ];
+        }
+
+        /*
+         * Gestante con fecha de parto/cesárea:
+         * se conserva la condición gestante y se lleva la fecha de
+         * atención del parto a No aplica.
+         */
+        if (
+            in_array($type, ['WA', 'WASHINGTON'], true)
+            && $variable === 49
+            && (
+                str_contains($description, 'parto')
+                || str_contains($description, 'cesaria')
+                || str_contains($description, 'cesarea')
+            )
+        ) {
+            return [
+                49 => '1845-01-01',
+            ];
+        }
+
+        /*
+         * En gestantes aplica la toma de prueba para VIH. Cuando no
+         * existe una fecha real, se usa el comodín de no realización y
+         * se mantiene el resultado como riesgo no evaluado.
+         */
+        if (
+            in_array($type, ['WA', 'WASHINGTON'], true)
+            && $variable === 82
+            && str_contains($description, 'gestante')
+            && str_contains($description, 'vih')
+        ) {
+            return [
+                82 => '1800-01-01',
+                83 => '21',
+            ];
+        }
+
+        /*
          * Cierre de reglas adicionales SIGIRES - Sanitas.
          */
 
@@ -469,9 +640,42 @@ final class FamiliarColombiaCorrectionService
             $type === 'CE'
             && $variable === 32
         ) {
-            $rawHeight = trim(
-                (string) ($record[32] ?? '')
+            $rawHeight = str_replace(
+                ',',
+                '.',
+                trim((string) ($record[32] ?? ''))
             );
+
+            /*
+             * Familiar exige máximo tres caracteres para la talla.
+             * Los decimales se convierten a centímetros enteros con
+             * redondeo convencional: 119.5 -> 120, 155.8 -> 156.
+             */
+            if (
+                is_numeric($rawHeight)
+                && (
+                    str_contains($rawHeight, '.')
+                    || str_contains(
+                        (string) ($record[32] ?? ''),
+                        ','
+                    )
+                )
+            ) {
+                $candidate = (int) round(
+                    (float) $rawHeight,
+                    0,
+                    PHP_ROUND_HALF_UP
+                );
+
+                if (
+                    $candidate >= 20
+                    && $candidate <= 225
+                ) {
+                    return [
+                        32 => (string) $candidate,
+                    ];
+                }
+            }
 
             if (ctype_digit($rawHeight)) {
                 $height = (int) $rawHeight;
@@ -1532,22 +1736,28 @@ final class FamiliarColombiaCorrectionService
                 $engineError
             );
 
-            if (
-                $decision->status !== 'automatic'
-                || $decision->variable === null
-            ) {
+            if ($decision->status !== 'automatic') {
                 continue;
             }
 
-            $targetVariable = $decision->variable;
-            $changes[$targetVariable] =
-                $decision->newValue;
-
             /*
-             * Una regla posterior debe ver el valor recién deducido.
+             * El motor puede devolver una corrección atómica de varias
+             * variables. Familiar debe aplicar todo el bloque y no solo
+             * la primera celda de la decisión.
              */
-            $recordContext['variables'][$targetVariable] =
-                $decision->newValue;
+            foreach (
+                $decision->automaticChanges()
+                as $targetVariable => $targetValue
+            ) {
+                $targetVariable = (int) $targetVariable;
+                $changes[$targetVariable] = $targetValue;
+
+                /*
+                 * Una regla posterior debe ver el valor recién deducido.
+                 */
+                $recordContext['variables'][$targetVariable] =
+                    $targetValue;
+            }
         }
 
         if ($changes !== []) {
@@ -1722,6 +1932,82 @@ final class FamiliarColombiaCorrectionService
         }
 
         return null;
+    }
+
+    private function normalizeRectalExamResult(
+        string $value
+    ): ?string {
+        $normalized = $this->asciiLower($value);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $abnormalIndicators = [
+            'anormal',
+            'nodulo',
+            'indurad',
+            'irregular',
+            'asimetr',
+            'dolor',
+            'sospech',
+        ];
+
+        foreach ($abnormalIndicators as $indicator) {
+            if (str_contains($normalized, $indicator)) {
+                /*
+                 * La expresión "sin nódulos", "sin áreas induradas" o
+                 * "sin dolor" describe un resultado normal.
+                 */
+                if (
+                    preg_match(
+                        '/\bsin\s+(nodul|areas?\s+indurad|dolor)/',
+                        $normalized
+                    ) === 1
+                ) {
+                    continue;
+                }
+
+                return '4';
+            }
+        }
+
+        if (
+            str_contains($normalized, 'normal')
+            || str_contains($normalized, 'acorde a la edad')
+            || (
+                str_contains($normalized, 'simetric')
+                && str_contains($normalized, 'bordes regulares')
+                && str_contains($normalized, 'sin nodul')
+            )
+        ) {
+            return '5';
+        }
+
+        return null;
+    }
+
+    private function normalizeHivResult(
+        string $value
+    ): ?string {
+        $normalized = $this->asciiLower($value);
+
+        return match ($normalized) {
+            'negativo',
+            'no reactivo',
+            'no-reactivo' => '5',
+
+            'positivo',
+            'reactivo' => '4',
+
+            'no aplica' => '0',
+
+            'sin dato',
+            'no evaluado',
+            'riesgo no evaluado' => '21',
+
+            default => null,
+        };
     }
 
     private function formatNumber(float $value): string

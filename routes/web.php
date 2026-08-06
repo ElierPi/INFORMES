@@ -31,6 +31,11 @@ Route::middleware(['auth', 'verified'])
         Route::view('/resolucion-202', 'informes.resolucion-202')
             ->name('resolucion-202');
 
+        Route::view(
+            '/resolucion-202/corregir-dusakawi',
+            'informes.resolucion-202-corregir-dusakawi'
+        )->name('resolucion-202.corregir-dusakawi');
+
         Route::view('/resolucion-202/preparar', 'informes.resolucion-202-preparar')
             ->name('resolucion-202.preparar');
 
@@ -59,6 +64,24 @@ Route::view(
 
         Route::view('/resolucion-1552', 'informes.resolucion-1552')
             ->name('resolucion-1552');
+
+        Route::view('/resolucion-1552/dusakawi/corregir', 'informes.resolucion-1552-dusakawi-corregir')
+            ->name('resolucion-1552.dusakawi.corregir');
+
+        Route::view('/resolucion-1552/familiar-colombia', 'informes.resolucion-1552-familiar')
+            ->name('resolucion-1552.familiar-colombia');
+
+        Route::view('/resolucion-1552/familiar-colombia/corregir', 'informes.resolucion-1552-familiar-corregir')
+            ->name('resolucion-1552.familiar-colombia.corregir');
+
+        Route::view('/resolucion-1552/proteger', 'informes.resolucion-1552-proteger')
+            ->name('resolucion-1552.proteger');
+
+        Route::view('/resolucion-1552/sanitas', 'informes.resolucion-1552-sanitas')
+            ->name('resolucion-1552.sanitas');
+
+        Route::view('/sigires-cronicos', 'informes.sigires-cronicos')
+            ->name('sigires-cronicos');
     });
 
 Route::middleware(['auth'])->group(function () {

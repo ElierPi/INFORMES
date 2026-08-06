@@ -62,7 +62,32 @@
                 @enderror
             </div>
 
-            @if (in_array($eps, ['familiar', 'sanitas'], true))
+            @if ($eps === 'dusakawi')
+                <div class="md:col-span-1 xl:col-span-3">
+                    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5
+                                dark:border-emerald-800 dark:bg-emerald-950/30">
+                        <h2 class="font-semibold text-emerald-900 dark:text-emerald-100">
+                            Corrector ZIP de Dusakawi
+                        </h2>
+
+                        <p class="mt-2 text-sm leading-6 text-emerald-800 dark:text-emerald-300">
+                            Carga el ZIP original y el archivo de errores.
+                            El sistema devolverá un ZIP corregido conservando
+                            la estructura interna.
+                        </p>
+
+                        <a
+                            href="{{ route('informes.resolucion-202.corregir-dusakawi') }}"
+                            wire:navigate
+                            class="mt-4 inline-flex items-center justify-center rounded-lg
+                                   bg-emerald-600 px-4 py-2 text-sm font-semibold text-white
+                                   hover:bg-emerald-700"
+                        >
+                            Abrir corrector ZIP de Dusakawi
+                        </a>
+                    </div>
+                </div>
+            @elseif (in_array($eps, ['familiar_colombia', 'sanitas'], true))
                 <div class="md:col-span-1 xl:col-span-3">
                     <div class="rounded-xl border border-violet-200 bg-violet-50 p-5
                                 dark:border-violet-800 dark:bg-violet-950/30">

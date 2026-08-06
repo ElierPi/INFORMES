@@ -113,6 +113,17 @@ if ($recordKey === null) {
 }
 
 $record = &$recordIndexes['records'][$recordKey];
+
+            /*
+             * Algunas reglas de Proteger comparan fechas contra el corte
+             * del informe. El lector lo entrega a nivel del conjunto de
+             * datos, por lo que se incorpora al contexto de cada registro.
+             */
+            $record['cutoff_date'] =
+                $excelResult['cutoff_date']
+                ?? $record['cutoff_date']
+                ?? null;
+
             $decision = $this->ruleEngine->resolve(
                 $record,
                 $error
@@ -281,15 +292,23 @@ $this->saveWorkbook(
         }
 
         /*
-         * La corrección principal siempre se aplica.
+         * La decisión puede contener una o varias variables.
+         *
+         * Antes se tomaba únicamente variable/newValue, lo que hacía
+         * que las reglas atómicas de Proteger escribieran solo la
+         * primera celda y dejaran desincronizado el campo relacionado.
          */
-        $changes = [
-            $primaryVariable => $decision->newValue,
-        ];
+        $changes = $decision->automaticChanges();
+
+        if ($changes === []) {
+            $changes = [
+                $primaryVariable => $decision->newValue,
+            ];
+        }
 
         /*
-         * Agrega cambios relacionados para reglas que necesitan
-         * modificar varias variables en el mismo registro.
+         * Conserva los ajustes relacionados heredados de reglas
+         * anteriores, por ejemplo el bloque HDL del Error309.
          */
         foreach (
             $this->relatedAutomaticChanges(

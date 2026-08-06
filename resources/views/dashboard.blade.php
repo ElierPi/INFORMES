@@ -29,6 +29,34 @@
     'accent' => 'emerald',
     'icon' => 'document',
 ],
+
+[
+    'name' => '1552 · Familiar de Colombia',
+    'description' => 'Convierte el formato QAC-FO26 en TXT ANSI de 14 campos separado por punto y coma.',
+    'route' => 'informes.resolucion-1552.familiar-colombia',
+    'status' => 'Activo',
+    'enabled' => true,
+    'accent' => 'cyan',
+    'icon' => 'document',
+],
+[
+    'name' => '1552 · Proteger',
+    'description' => 'Convierte el Excel institucional en TXT UTF-8 de 14 campos y genera el ZIP oficial.',
+    'route' => 'informes.resolucion-1552.proteger',
+    'status' => 'Activo',
+    'enabled' => true,
+    'accent' => 'violet',
+    'icon' => 'document',
+],
+[
+    'name' => '1552 · Sanitas SIGIRES',
+    'description' => 'Valida el Excel de Sanitas y genera TXT ANSI tabulado dentro de ZIP.',
+    'route' => 'informes.resolucion-1552.sanitas',
+    'status' => 'Activo',
+    'enabled' => true,
+    'accent' => 'sky',
+    'icon' => 'document',
+],
             [
                 'name' => 'Gestantes SIGIRES',
                 'description' => 'Accede al módulo de gestantes para corregir, validar y generar archivos oficiales.',
@@ -66,11 +94,11 @@
                 'icon' => 'shield',
             ],
             [
-                'name' => 'Cuenta de Alto Costo',
-                'description' => 'Herramientas para validar y preparar reportes de alto costo.',
-                'route' => null,
-                'status' => 'Próximamente',
-                'enabled' => false,
+                'name' => 'Cuenta de Alto Costo · SIGIRES',
+                'description' => 'Cruza la base regional con historias clínicas y prepara la estructura ERC PRECURSORAS para SIGIRES.',
+                'route' => 'informes.sigires-cronicos',
+                'status' => 'Activo',
+                'enabled' => true,
                 'accent' => 'cyan',
                 'icon' => 'clipboard',
             ],
@@ -106,6 +134,11 @@
                 'border' => 'border-cyan-200 dark:border-cyan-900',
                 'icon' => 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/60 dark:text-cyan-300',
                 'button' => 'bg-cyan-600 hover:bg-cyan-700 focus:ring-cyan-500',
+            ],
+            'sky' => [
+                'border' => 'border-sky-200 dark:border-sky-900',
+                'icon' => 'bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300',
+                'button' => 'bg-sky-600 hover:bg-sky-700 focus:ring-sky-500',
             ],
         ];
     @endphp
@@ -162,7 +195,7 @@
 
             <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 @foreach ($modules as $module)
-                    @php $colors = $accentClasses[$module['accent']]; @endphp
+                    @php $colors = $accentClasses[$module['accent']] ?? $accentClasses['blue']; @endphp
 
                     <article class="flex min-h-72 flex-col rounded-2xl border bg-white p-6 shadow-sm transition duration-200 dark:bg-neutral-900 {{ $colors['border'] }} {{ $module['enabled'] ? 'hover:-translate-y-1 hover:shadow-lg' : 'opacity-80' }}">
                         <div class="flex items-start justify-between gap-4">

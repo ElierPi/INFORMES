@@ -70,6 +70,18 @@ public function supports(
 
     if (
         $variable === 12
+        && strtoupper(
+            trim((string) (
+                $record['variables'][12]
+                ?? ''
+            ))
+        ) === 'NA'
+    ) {
+        return true;
+    }
+
+    if (
+        $variable === 12
         && (
             str_contains($message, 'codigo de ocupacion')
             || str_contains($message, 'campo 12')
@@ -88,7 +100,7 @@ public function supports(
         return true;
     }
 
-if (in_array($variable, [5, 6, 7, 8, 19, 95, 104, 111], true)) {
+if (in_array($variable, [5, 6, 7, 8, 19, 30, 31, 32, 43, 44, 45, 46, 52, 86, 87, 88, 89, 95, 104, 107, 111], true)) {
     return true;
 }
 
@@ -345,7 +357,10 @@ if (
             }
         }
 
-        if ($variable === 95) {
+        if (
+            $variable === 95
+            && ! in_array($code, ['309', '623', '624'], true)
+        ) {
             return $this->normalizeHdlResult(
                 variable: $variable,
                 currentValue: $currentValue
@@ -362,7 +377,135 @@ if (
     );
 }
 
+
+        /*
+         * Errores estructurales sin código explícito.
+         */
+        if (
+            $variable === 30
+            && str_contains(
+                $message,
+                'el peso de los ninos de 5 a 12 anos'
+            )
+        ) {
+            $weight = (float) str_replace(
+                ',',
+                '.',
+                trim((string) $currentValue)
+            );
+
+            foreach ([$weight / 10, $weight / 100] as $candidate) {
+                if ($candidate >= 9 && $candidate <= 80) {
+                    return $this->automaticOrValid(
+                        variable: 30,
+                        currentValue: $currentValue,
+                        newValue: rtrim(
+                            rtrim(
+                                number_format($candidate, 2, '.', ''),
+                                '0'
+                            ),
+                            '.'
+                        ),
+                        reason:
+                            'Se detectó un desplazamiento decimal evidente '
+                            . 'en el peso infantil.'
+                    );
+                }
+            }
+
+            return $this->manual(
+                variable: 30,
+                currentValue: $currentValue,
+                reason:
+                    'El peso está fuera del rango permitido y no se pudo '
+                    . 'deducir una corrección segura.'
+            );
+        }
+
+        if (
+            $variable === 32
+            && str_contains(
+                $message,
+                'la talla de los adultos mayores a 18 anos'
+            )
+        ) {
+            $height = (int) trim((string) $currentValue);
+
+            if ($height >= 30 && $height <= 99) {
+                $height += 100;
+            } elseif ($height >= 100 && $height < 130) {
+                $height += 100;
+            }
+
+            if ($height >= 130 && $height <= 225) {
+                return $this->automaticOrValid(
+                    variable: 32,
+                    currentValue: $currentValue,
+                    newValue: $height,
+                    reason:
+                        'Se corrigió la talla porque presentaba un '
+                        . 'desplazamiento de centena evidente.'
+                );
+            }
+
+            return $this->manual(
+                variable: 32,
+                currentValue: $currentValue,
+                reason:
+                    'La talla no permite deducir una corrección segura.'
+            );
+        }
+
+        if (
+            $variable === 107
+            && str_contains(
+                $message,
+                'resultado_creatinina tiene una longitud mayor'
+            )
+        ) {
+            $value = (float) str_replace(
+                ',',
+                '.',
+                trim((string) $currentValue)
+            );
+
+            if ($value > 25 && ($value / 10) >= 0.2 && ($value / 10) <= 25) {
+                return $this->automaticOrValid(
+                    variable: 107,
+                    currentValue: $currentValue,
+                    newValue: rtrim(
+                        rtrim(
+                            number_format($value / 10, 2, '.', ''),
+                            '0'
+                        ),
+                        '.'
+                    ),
+                    reason:
+                        'Se corrigió un desplazamiento decimal evidente '
+                        . 'en el resultado de creatinina.'
+                );
+            }
+        }
+
         return match ($code) {
+
+            '043', '382', '423' => $this->heightDateWithoutHeight(
+                variable: $variable,
+                currentValue: $currentValue,
+                record: $record
+            ),
+
+            '623' => $this->hdlDateWithoutResult(
+                variable: $variable,
+                currentValue: $currentValue,
+                record: $record
+            ),
+
+            '624' => $this->hdlSpecialDateResultBlock(
+                variable: $variable,
+                currentValue: $currentValue,
+                record: $record
+            ),
 
             '309' => $this->hdlNoAplicaPorEdad(
                 variable: $variable,
@@ -399,7 +542,7 @@ if (
                   record: $record
 ),
 
-            '560', '564', '568', '572' =>
+            '558', '560', '562', '564', '566', '568', '570', '572' =>
                 $this->normalizeDevelopmentScaleBlock(
                     variable: $variable,
                     currentValue: $currentValue,
@@ -422,11 +565,17 @@ if (
                    currentValue: $currentValue,
                    record: $record
 ),
+            '517' => $this->sangreOcultaPorEdad(
+                variable: $variable,
+                currentValue: $currentValue,
+                record: $record
+            ),
+
             '518' => $this->sangreOcultaNoAplica(
-                 variable: $variable,
-                 currentValue: $currentValue,
-                 record: $record
-),
+                variable: $variable,
+                currentValue: $currentValue,
+                record: $record
+            ),
             '223' => $this->validateGestationByAge(
                 variable: $variable,
                 currentValue: $currentValue,
@@ -480,6 +629,12 @@ if (
                 currentValue: $currentValue,
                 record: $record,
                 resultVariable: 28
+            ),
+
+            '341', '600' => $this->hepatitisBSurfaceAntigenBlock(
+                variable: $variable,
+                currentValue: $currentValue,
+                record: $record
             ),
 
             '534' => $this->gestationalRiskWithoutPrenatalDate(
@@ -621,6 +776,12 @@ if (
             ),
 
             '641' => $this->hemoglobinNoAplica(
+                variable: $variable,
+                currentValue: $currentValue,
+                record: $record
+            ),
+
+            '099', '371' => $this->creatinineClinicalResultRequired(
                 variable: $variable,
                 currentValue: $currentValue,
                 record: $record
@@ -2112,6 +2273,117 @@ private function glicemiaNoAplicaPorEdad(
             rule: self::class
         );
     }
+private function hdlDateWithoutResult(
+    int $variable,
+    mixed $currentValue,
+    array $record
+): ?RuleDecision {
+    if (! in_array($variable, [95, 111], true)) {
+        return null;
+    }
+
+    return $this->automaticBlock(
+        record: $record,
+        changes: [
+            95 => 998,
+            111 => '1800-01-01',
+        ],
+        reason:
+            'Existe una inconsistencia entre la fecha y el resultado de '
+            . 'HDL. Al no existir un resultado clínico confiable, el bloque '
+            . 'se normaliza a resultado 998 y fecha 1800-01-01.'
+    );
+}
+
+private function hdlSpecialDateResultBlock(
+    int $variable,
+    mixed $currentValue,
+    array $record
+): ?RuleDecision {
+    if (! in_array($variable, [95, 111], true)) {
+        return null;
+    }
+
+    $date = trim((string) ($record['variables'][111] ?? ''));
+    $result = trim((string) ($record['variables'][95] ?? ''));
+
+    if (in_array($date, self::NO_REALIZATION_DATES, true)) {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                95 => 998,
+                111 => $date,
+            ],
+            reason:
+                'La fecha de HDL contiene un comodín de no realización. '
+                . 'Dusakawi exige que el resultado relacionado sea 998.'
+        );
+    }
+
+    if ($result === '998') {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                95 => 998,
+                111 => '1800-01-01',
+            ],
+            reason:
+                'El resultado de HDL es 998 y debe estar acompañado por '
+                . 'un comodín de no realización. Se usa 1800-01-01.'
+        );
+    }
+
+    return $this->manual(
+        variable: $variable,
+        currentValue: $currentValue,
+        reason:
+            'El Error 624 exige coherencia entre la fecha especial de HDL '
+            . 'y el resultado 998, pero la combinación actual no permite '
+            . 'deducir una corrección clínica segura.'
+    );
+}
+
+private function heightDateWithoutHeight(
+    int $variable,
+    mixed $currentValue,
+    array $record
+): ?RuleDecision {
+    if (! in_array($variable, [31, 32], true)) {
+        return null;
+    }
+
+    $date = trim((string) ($record['variables'][31] ?? ''));
+    $height = trim((string) ($record['variables'][32] ?? ''));
+
+    /*
+     * Dusakawi no acepta 1845-01-01 en FechaTalla cuando la talla
+     * es 999. En el mismo archivo fueron aceptados los registros con
+     * la pareja 1800-01-01 / 999, que significa que no se tomó la talla.
+     */
+    if (in_array($height, ['', '0', '999'], true)) {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                31 => '1800-01-01',
+                32 => 999,
+            ],
+            reason:
+                'No existe una talla clínica válida. El bloque se normaliza '
+                . 'como no tomado usando FechaTalla 1800-01-01 y talla 999, '
+                . 'sin inventar una fecha ni una medición.'
+        );
+    }
+
+    return RuleDecision::valid(
+        variable: $variable,
+        currentValue: $currentValue,
+        reason:
+            'Existe una talla válida; la fecha se conserva y debe revisarse '
+            . 'solo si Dusakawi reporta otra inconsistencia específica.',
+        rule: self::class
+    );
+}
+
 private function occupationCode(
     int $variable,
     mixed $currentValue
@@ -2120,91 +2392,48 @@ private function occupationCode(
         return null;
     }
 
-    $normalized = $this->normalizeOccupationCode(
-        $currentValue
+    $normalizedCurrentValue = strtoupper(
+        trim((string) $currentValue)
     );
 
-    if (
-        trim((string) $currentValue)
-        === $normalized
-    ) {
-        return RuleDecision::valid(
+    /*
+     * El archivo fuente puede traer el texto literal "NA" en el
+     * campo 12. Como la variable exige un código numérico de cuatro
+     * posiciones, "NA" se normaliza al comodín oficial 9999
+     * (No se tiene información).
+     *
+     * Se valida el valor actual y no el código numérico del error,
+     * de modo que la corrección siga funcionando aunque Dusakawi
+     * cambie la numeración del rechazo.
+     */
+    if ($normalizedCurrentValue === 'NA') {
+        return RuleDecision::automatic(
             variable: 12,
             currentValue: $currentValue,
+            newValue: 9999,
             reason:
-                'El código de ocupación ya tiene el formato correcto.',
+                'La variable 12 contenía NA. Se reemplazó por 9999, '
+                . 'correspondiente a No se tiene información.',
             rule: self::class
         );
     }
 
-    return RuleDecision::automatic(
+    /*
+     * Dusakawi indicó que, cuando el código de ocupación
+     * reportado no sea válido, la variable 12 debe quedar
+     * exactamente en 9999.
+     *
+     * Esta regla solo se ejecuta sobre registros reportados
+     * por la EPS con mensajes de código de ocupación o campo 12.
+     */
+    return $this->automaticOrValid(
         variable: 12,
         currentValue: $currentValue,
-        newValue: $normalized,
+        newValue: 9999,
         reason:
-            $normalized === '9998'
-                ? 'El código de ocupación estaba registrado como NA '
-                    . 'o No aplica; se reemplazó por 9998.'
-                : 'Se eliminaron únicamente los ceros ubicados '
-                    . 'a la izquierda del código de ocupación.',
-        rule: self::class
+            'Dusakawi reportó que el código de ocupación no es válido. '
+            . 'La variable 12 se reemplazó por 9999.'
     );
-}
-private function normalizeOccupationCode(
-    mixed $value
-): string {
-    $value = trim((string) $value);
-
-    if ($value === '') {
-        return '';
-    }
-
-    /*
-     * Normaliza el texto para reconocer:
-     * NA, N/A, N.A., NO APLICA.
-     */
-    $normalizedText = Str::of($value)
-        ->ascii()
-        ->upper()
-        ->replaceMatches('/[^A-Z0-9]+/', '')
-        ->toString();
-
-    if (
-        in_array(
-            $normalizedText,
-            [
-                'NA',
-                'NOAPLICA',
-            ],
-            true
-        )
-    ) {
-        return '9998';
-    }
-
-    /*
-     * Si no es completamente numérico,
-     * no modifica el valor automáticamente.
-     */
-    if (! preg_match('/^\d+$/', $value)) {
-        return $value;
-    }
-
-    /*
-     * Elimina únicamente ceros a la izquierda.
-     *
-     * 0003 -> 3
-     * 0123 -> 123
-     * 1234 -> 1234
-     */
-    $normalized = ltrim(
-        $value,
-        '0'
-    );
-
-    return $normalized === ''
-        ? '0'
-        : $normalized;
 }
 
 private function educationLevelCode(
@@ -2542,6 +2771,61 @@ private function normalizeHemoglobinResult(
             . 'eliminando la parte decimal sin redondear.'
     );
 }
+private function sangreOcultaPorEdad(
+    int $variable,
+    mixed $currentValue,
+    array $record
+): ?RuleDecision {
+    if (! in_array($variable, [24, 67], true)) {
+        return null;
+    }
+
+    $ageMonths = $record['age']['months'] ?? null;
+    $ageYears = $record['age']['years'] ?? null;
+
+    if (is_numeric($ageMonths)) {
+        $months = (float) $ageMonths;
+        $insideAgeRange = $months >= 600 && $months <= 912;
+        $displayAge = round($months / 12, 2);
+    } elseif (is_numeric($ageYears)) {
+        $years = (float) $ageYears;
+        $insideAgeRange = $years >= 50 && $years <= 76;
+        $displayAge = round($years, 2);
+    } else {
+        return $this->manual(
+            $variable,
+            $currentValue,
+            'No fue posible calcular la edad para validar la prueba de sangre oculta.'
+        );
+    }
+
+    if (! $insideAgeRange) {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                24 => 0,
+                67 => self::NO_APLICA_DATE,
+            ],
+            reason:
+                "La persona tiene aproximadamente {$displayAge} años y está "
+                . 'fuera del rango de 50 a 76 años. La prueba de sangre '
+                . 'oculta se registra como No aplica.'
+        );
+    }
+
+    return $this->automaticBlock(
+        record: $record,
+        changes: [
+            24 => 21,
+            67 => '1800-01-01',
+        ],
+        reason:
+            "La persona tiene aproximadamente {$displayAge} años y está "
+            . 'dentro del rango de 50 a 76 años. Al no existir resultado '
+            . 'clínico, el bloque queda como no evaluado.'
+    );
+}
+
 private function sangreOcultaNoAplica(
     int $variable,
     mixed $currentValue,
@@ -2563,28 +2847,39 @@ private function sangreOcultaNoAplica(
         $outsideAgeRange = $years < 50 || $years > 75;
         $displayAge = round($years, 2);
     } else {
-        return $this->manual($variable, $currentValue, 'No fue posible calcular la edad para validar la prueba de sangre oculta.');
+        return $this->manual(
+            $variable,
+            $currentValue,
+            'No fue posible calcular la edad para validar la prueba de sangre oculta.'
+        );
     }
 
     $risk = trim((string) ($record['variables'][114] ?? ''));
     $noRisk = $risk === '0';
 
     if ($outsideAgeRange && $noRisk) {
-        $target = $variable === 24 ? 0 : self::NO_APLICA_DATE;
-        return $this->automaticOrValid(
-            variable: $variable,
-            currentValue: $currentValue,
-            newValue: $target,
-            reason: "La persona tiene aproximadamente {$displayAge} años, está fuera del rango de 50 a 75 años y no tiene riesgo identificado. La prueba se registra como No aplica."
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                24 => 0,
+                67 => self::NO_APLICA_DATE,
+            ],
+            reason:
+                "La persona tiene aproximadamente {$displayAge} años, está "
+                . 'fuera del rango y no tiene riesgo identificado. La prueba '
+                . 'se registra como No aplica.'
         );
     }
 
-    $target = $variable === 24 ? 21 : '1800-01-01';
-    return $this->automaticOrValid(
-        variable: $variable,
-        currentValue: $currentValue,
-        newValue: $target,
-        reason: "La persona tiene aproximadamente {$displayAge} años o no se confirmó ausencia de riesgo. No corresponde conservar No aplica; el bloque se normalizó como no evaluado."
+    return $this->automaticBlock(
+        record: $record,
+        changes: [
+            24 => 21,
+            67 => '1800-01-01',
+        ],
+        reason:
+            "La persona tiene aproximadamente {$displayAge} años o no se "
+            . 'confirmó ausencia de riesgo. El bloque se normaliza como no evaluado.'
     );
 }
 
@@ -4189,25 +4484,37 @@ private function miniMentalByAge(
     $ageYears = $this->ageYears($record);
 
     if ($ageYears === null) {
-        return $this->manual($variable, $currentValue, 'No fue posible calcular la edad para validar Mini-Mental.');
-    }
-
-    if ($ageYears >= 60) {
-        $target = $variable === 16 ? 21 : '1800-01-01';
-        return $this->automaticOrValid(
-            variable: $variable,
-            currentValue: $currentValue,
-            newValue: $target,
-            reason: "La persona tiene {$ageYears} años. Mini-Mental aplica por edad, pero no existe una valoración clínica real; se registra como no evaluado."
+        return $this->manual(
+            $variable,
+            $currentValue,
+            'No fue posible calcular la edad para validar Mini-Mental.'
         );
     }
 
-    $target = $variable === 16 ? 0 : self::NO_APLICA_DATE;
-    return $this->automaticOrValid(
-        variable: $variable,
-        currentValue: $currentValue,
-        newValue: $target,
-        reason: "La persona tiene {$ageYears} años y Mini-Mental no aplica por rango de edad."
+    if ($ageYears >= 60) {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                16 => 21,
+                52 => '1800-01-01',
+            ],
+            reason:
+                "La persona tiene {$ageYears} años. Mini-Mental aplica por "
+                . 'edad, pero no existe una valoración clínica real; el '
+                . 'resultado queda en 21 y la fecha en 1800-01-01.'
+        );
+    }
+
+    return $this->automaticBlock(
+        record: $record,
+        changes: [
+            16 => 0,
+            52 => self::NO_APLICA_DATE,
+        ],
+        reason:
+            "La persona tiene {$ageYears} años y Mini-Mental no aplica por "
+            . 'rango de edad. El bloque queda en resultado 0 y fecha '
+            . '1845-01-01.'
     );
 }
 
@@ -4223,21 +4530,24 @@ private function normalizeRespiratorySymptomaticPositiveBlock(
     $symptomatic = trim((string) ($record['variables'][18] ?? ''));
 
     if (! in_array($symptomatic, ['1', '2', '21'], true)) {
-        return $this->manual($variable, $currentValue, 'No fue posible interpretar el estado de sintomático respiratorio.');
-    }
-
-    if ($symptomatic === '1' || $symptomatic === '2') {
-        $target = $variable === 112 ? '1800-01-01' : 21;
-        return $this->automaticOrValid(
-            variable: $variable,
-            currentValue: $currentValue,
-            newValue: $target,
-            reason: 'La persona está registrada como sintomática respiratoria y no hay resultado clínico confiable; se normalizó la baciloscopia como no realizada/no evaluada.'
+        return $this->manual(
+            $variable,
+            $currentValue,
+            'No fue posible interpretar el estado de sintomático respiratorio.'
         );
     }
 
-    $target = $variable === 112 ? '1800-01-01' : 21;
-    return $this->automaticOrValid($variable, $currentValue, $target, 'El riesgo respiratorio no fue evaluado; la baciloscopia debe quedar sin dato y no evaluada.');
+    return $this->automaticBlock(
+        record: $record,
+        changes: [
+            112 => '1800-01-01',
+            113 => 21,
+        ],
+        reason:
+            'No existe una baciloscopia clínica confiable para el estado '
+            . "respiratorio {$symptomatic}. El bloque se normaliza a fecha "
+            . '1800-01-01 y resultado 21, riesgo no evaluado.'
+    );
 }
 
 private function agudezaConResultadoSinFecha(
@@ -4263,6 +4573,162 @@ private function agudezaConResultadoSinFecha(
     );
 }
 
+private function hepatitisBSurfaceAntigenBlock(
+    int $variable,
+    mixed $currentValue,
+    array $record
+): ?RuleDecision {
+    if (! in_array($variable, [78, 79], true)) {
+        return null;
+    }
+
+    $date = trim((string) ($record['variables'][78] ?? ''));
+    $result = trim((string) ($record['variables'][79] ?? ''));
+
+    /*
+     * Resultado 0 significa No aplica. En ese caso la fecha relacionada
+     * tampoco puede conservarse como una fecha clínica real.
+     */
+    if ($result === '0' || $date === self::NO_APLICA_DATE) {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                78 => self::NO_APLICA_DATE,
+                79 => 0,
+            ],
+            reason:
+                'El resultado del antígeno de superficie de hepatitis B '
+                . 'está registrado como No aplica. La fecha relacionada '
+                . 'también debe quedar en 1845-01-01.'
+        );
+    }
+
+    if (in_array($date, self::NO_REALIZATION_DATES, true)) {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                78 => $date,
+                79 => 21,
+            ],
+            reason:
+                'La fecha del antígeno de superficie de hepatitis B contiene '
+                . 'un comodín de no realización. El resultado se registra '
+                . 'como 21, no evaluado.'
+        );
+    }
+
+    if ($result === '21') {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                78 => '1800-01-01',
+                79 => 21,
+            ],
+            reason:
+                'El resultado del antígeno de superficie de hepatitis B es '
+                . '21, no evaluado. La fecha se normaliza a 1800-01-01.'
+        );
+    }
+
+    if (
+        $this->isRealReportDate($date)
+        && in_array($result, ['4', '5'], true)
+    ) {
+        return RuleDecision::valid(
+            variable: $variable,
+            currentValue: $currentValue,
+            reason:
+                'Existe una fecha clínica real y un resultado válido del '
+                . 'antígeno de superficie de hepatitis B.',
+            rule: self::class
+        );
+    }
+
+    return $this->manual(
+        variable: $variable,
+        currentValue: $currentValue,
+        reason:
+            'La fecha y el resultado del antígeno de superficie de hepatitis B '
+            . 'no forman una combinación segura para corrección automática.'
+    );
+}
+
+private function creatinineClinicalResultRequired(
+    int $variable,
+    mixed $currentValue,
+    array $record
+): ?RuleDecision {
+    if (! in_array($variable, [106, 107], true)) {
+        return null;
+    }
+
+    $date = trim((string) ($record['variables'][106] ?? ''));
+    $rawResult = str_replace(
+        ',',
+        '.',
+        trim((string) ($record['variables'][107] ?? ''))
+    );
+
+    if (
+        $this->isRealReportDate($date)
+        && is_numeric($rawResult)
+        && (float) $rawResult >= 0.2
+        && (float) $rawResult <= 25
+    ) {
+        return RuleDecision::valid(
+            variable: $variable,
+            currentValue: $currentValue,
+            reason:
+                'La fecha de creatinina es real y el resultado está entre '
+                . '0.2 y 25.',
+            rule: self::class
+        );
+    }
+
+    if ($date === self::NO_APLICA_DATE) {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                106 => self::NO_APLICA_DATE,
+                107 => 0,
+            ],
+            reason:
+                'La toma de creatinina está registrada como No aplica; '
+                . 'el resultado relacionado se normaliza a 0.'
+        );
+    }
+
+    if (in_array($date, self::NO_REALIZATION_DATES, true)) {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                106 => $date,
+                107 => 998,
+            ],
+            reason:
+                'La fecha de creatinina contiene un comodín de no realización; '
+                . 'el resultado relacionado se normaliza a 998.'
+        );
+    }
+
+    /*
+     * Una fecha real acompañada de 0, vacío o un valor fuera de rango
+     * no permite recuperar el resultado clínico. Para no inventarlo,
+     * se descarta la fecha aislada y se usa el bloque oficial "sin dato".
+     */
+    return $this->automaticBlock(
+        record: $record,
+        changes: [
+            106 => '1800-01-01',
+            107 => 998,
+        ],
+        reason:
+            'La fecha de creatinina no tiene un resultado clínico válido. '
+            . 'El bloque se registra como sin dato con fecha 1800-01-01 '
+            . 'y resultado 998, evitando inventar un valor de laboratorio.'
+    );
+}
+
 private function gestationalRiskWithoutPrenatalDate(
     int $variable,
     mixed $currentValue,
@@ -4276,18 +4742,18 @@ private function gestationalRiskWithoutPrenatalDate(
     $firstPrenatalDate = trim((string) ($record['variables'][56] ?? ''));
     $lastControlDate = trim((string) ($record['variables'][58] ?? ''));
 
-    if ($variable === 35) {
-        return RuleDecision::valid(
-            variable: 35,
-            currentValue: $currentValue,
-            reason:
-                'La clasificación de riesgo gestacional se conserva. '
-                . 'La validación requiere una fecha prenatal real.',
-            rule: self::class
-        );
-    }
-
     if (in_array($risk, ['', '0'], true)) {
+        if ($variable === 35) {
+            return RuleDecision::valid(
+                variable: 35,
+                currentValue: $currentValue,
+                reason:
+                    'No existe una clasificación de riesgo gestacional '
+                    . 'aplicable; la variable 35 se conserva.',
+                rule: self::class
+            );
+        }
+
         return $this->automaticOrValid(
             variable: $variable,
             currentValue: $currentValue,
@@ -4312,14 +4778,24 @@ private function gestationalRiskWithoutPrenatalDate(
         );
     }
 
-    return $this->manual(
-        variable: $variable,
-        currentValue: $currentValue,
+    /*
+     * 4 y 5 representan una clasificación clínica confirmada y exigen
+     * una fecha prenatal real. Si ninguna fecha existe, no se inventa:
+     * el riesgo se degrada a 21 (no evaluado) y se conservan las fechas
+     * como 1800-01-01 (sin dato), manteniendo coherencia con gestante=1.
+     */
+    return $this->automaticBlock(
+        record: $record,
+        changes: [
+            35 => 21,
+            56 => '1800-01-01',
+            58 => '1800-01-01',
+        ],
         reason:
-            'Existe una clasificación de riesgo gestacional, pero las '
-            . 'variables 56 y 58 no contienen una fecha prenatal real. '
-            . 'No se puede inventar automáticamente la fecha de la '
-            . 'primera consulta prenatal ni del último control.'
+            'No existe una fecha prenatal real que soporte la clasificación '
+            . "gestacional {$risk}. Para no inventar una consulta, el riesgo "
+            . 'se registra como 21, no evaluado, y las fechas permanecen '
+            . 'como sin dato.'
     );
 }
 
@@ -4468,20 +4944,44 @@ private function oralHealthByAge(
     mixed $currentValue,
     array $record
 ): ?RuleDecision {
-    if ($variable !== 76) {
+    if (! in_array($variable, [76, 102], true)) {
         return null;
     }
 
     $months = $record['age']['months'] ?? null;
+
     if (! is_numeric($months)) {
-        return $this->manual(76, $currentValue, 'No fue posible calcular la edad para validar atención en salud bucal.');
+        return $this->manual(
+            $variable,
+            $currentValue,
+            'No fue posible calcular la edad para validar atención en salud bucal.'
+        );
     }
 
     if ((float) $months < 6) {
-        return $this->automaticOrValid(76, $currentValue, self::NO_APLICA_DATE, 'La persona es menor de 6 meses; la atención en salud bucal no aplica.');
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                76 => self::NO_APLICA_DATE,
+                102 => 0,
+            ],
+            reason:
+                'La persona es menor de 6 meses; la atención en salud bucal '
+                . 'no aplica. El bloque queda en fecha 1845-01-01 y COP 0.'
+        );
     }
 
-    return $this->automaticOrValid(76, $currentValue, '1800-01-01', 'La persona tiene 6 meses o más, pero no existe una fecha real disponible; se registra sin dato.');
+    return $this->automaticBlock(
+        record: $record,
+        changes: [
+            76 => '1800-01-01',
+            102 => 21,
+        ],
+        reason:
+            'La persona tiene 6 meses o más. La atención en salud bucal '
+            . 'aplica por edad, pero no existe una atención clínica real; '
+            . 'el bloque queda en fecha 1800-01-01 y COP 21.'
+    );
 }
 
 private function futureServiceDate(
@@ -5375,6 +5875,22 @@ private function protegerOralHealthCop(
             . 'automáticos reconocidos.'
     );
 }
+
+    /**
+     * @param array<int, mixed> $changes
+     */
+    private function automaticBlock(
+        array $record,
+        array $changes,
+        string $reason
+    ): RuleDecision {
+        return RuleDecision::automaticMany(
+            changes: $changes,
+            currentValues: $record['variables'] ?? [],
+            reason: $reason,
+            rule: self::class
+        );
+    }
 
     private function automaticOrValid(
         int $variable,

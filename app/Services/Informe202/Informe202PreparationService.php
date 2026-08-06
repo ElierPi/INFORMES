@@ -208,7 +208,14 @@ final class Informe202PreparationService
                 'fields_per_record' => 119,
 
                 'includes_type_1' =>
-                    $destination === self::DESTINATION_DUSAKAWI,
+                    in_array(
+                        $destination,
+                        [
+                            self::DESTINATION_DUSAKAWI,
+                            self::DESTINATION_FAMILIAR_COLOMBIA,
+                        ],
+                        true
+                    ),
 
                 'output_type' =>
                     $destination === self::DESTINATION_FAMILIAR_COLOMBIA
@@ -330,7 +337,8 @@ final class Informe202PreparationService
     public function generateFamiliarColombiaZip(
         array $records,
         string $txtPath,
-        string $zipPath
+        string $zipPath,
+        string $cutoffDate
     ): array {
         if (! class_exists(\ZipArchive::class)) {
             throw new RuntimeException(
@@ -344,7 +352,64 @@ final class Informe202PreparationService
             );
         }
 
-        $lines = [];
+        $periodEnd = \DateTimeImmutable::createFromFormat(
+            '!Y-m-d',
+            $cutoffDate
+        );
+
+        if ($periodEnd === false) {
+            throw new RuntimeException(
+                'La fecha final del periodo no es válida.'
+            );
+        }
+
+        $firstRecord = array_values($records[0]);
+        $providerCode = trim(
+            (string) ($firstRecord[2] ?? '')
+        );
+
+        if ($providerCode === '') {
+            throw new RuntimeException(
+                'No fue posible determinar el código de habilitación de la IPS para la línea de control.'
+            );
+        }
+
+        foreach ($records as $recordIndex => $record) {
+            $values = array_values($record);
+            $recordProviderCode = trim(
+                (string) ($values[2] ?? '')
+            );
+
+            if ($recordProviderCode !== $providerCode) {
+                throw new RuntimeException(
+                    sprintf(
+                        'El registro %d tiene un código de IPS diferente al de la línea de control.',
+                        $recordIndex + 1
+                    )
+                );
+            }
+        }
+
+        $periodStart = $periodEnd->modify(
+            'first day of this month'
+        );
+
+        /*
+         * Familiar de Colombia exige una línea de control tipo 1:
+         * 1|código IPS|fecha inicial|fecha final|total registros
+         */
+        $lines = [
+            implode(
+                '|',
+                [
+                    '1',
+                    $providerCode,
+                    $periodStart->format('Y-m-d'),
+                    $periodEnd->format('Y-m-d'),
+                    (string) count($records),
+                ]
+            ),
+        ];
 
         foreach ($records as $recordIndex => $record) {
             $values = array_values($record);

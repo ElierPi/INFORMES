@@ -235,14 +235,15 @@ class Resolucion202PreparacionUploader extends Component
                     ),
                     zipPath: Storage::disk('local')->path(
                         $zipRelativePath
-                    )
+                    ),
+                    cutoffDate: $this->fechaCorte
                 );
 
                 $this->txtPath = $txtRelativePath;
                 $this->zipPath = $zipRelativePath;
                 $this->generado = true;
                 $this->mensaje =
-                    'El ZIP de Familiar de Colombia fue generado con TXT ANSI separado por |.';
+                    'El ZIP de Familiar de Colombia fue generado con línea de control tipo 1 y registros tipo 2.';
 
                 return;
             }

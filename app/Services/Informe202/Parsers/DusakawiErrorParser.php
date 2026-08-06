@@ -18,6 +18,11 @@ class DusakawiErrorParser implements ErrorParserInterface
         '064' => [71],
         '076' => [86, 87, 88, 89, 90],
         '099' => [107],
+        '341' => [78],
+        '371' => [107],
+        '382' => [31],
+        '402' => [76],
+        '423' => [31],
 
         '125' => [51],
         '127' => [53],
@@ -26,18 +31,26 @@ class DusakawiErrorParser implements ErrorParserInterface
         '223' => [14],
         '227' => [16],
         '232' => [113],
+        '043' => [31],
+        '558' => [43, 52],
+        '562' => [44, 52],
+        '566' => [45, 52],
+        '570' => [46, 52],
+        '614' => [86, 87, 88, 89],
+        '623' => [95],
+        '624' => [95],
         '244' => [14, 23, 33, 35, 56, 58, 59, 60, 61],
 
         '329' => [71],
         '352' => [86, 87, 88],
         '379' => [14, 23, 33, 35, 56, 58, 59, 60, 61],
-        '402' => [76],
 
         '503' => [16, 52],
 
         '507' => [112, 113],
 
-        '518' => [37, 67],
+        '517' => [24],
+        '518' => [24],
 
         '524' => [62],
         '525' => [27],
@@ -47,7 +60,8 @@ class DusakawiErrorParser implements ErrorParserInterface
         '529' => [28],
         '530' => [28, 62],
 
-        '534' => [35, 56, 58],
+        '534' => [35],
+        '600' => [78],
         '537' => [36, 66],
         '542' => [37, 69],
         '354' => [88, 89],
@@ -76,7 +90,6 @@ class DusakawiErrorParser implements ErrorParserInterface
         '585' => [57],
         '586' => [105, 57],
         '588' => [60],
-        '597' => [76, 102],
 
         '611' => [86, 87, 88],
 
@@ -87,9 +100,6 @@ class DusakawiErrorParser implements ErrorParserInterface
 
         '630' => [98],
         '631' => [98, 118],
-        '634' => [76, 102],
-        '636' => [102],
-        '637' => [102],
 
         '638' => [103],
         '641' => [104],
@@ -114,17 +124,32 @@ class DusakawiErrorParser implements ErrorParserInterface
      */
     private array $relatedVariablesByCode = [
         '076' => [86, 87, 88, 89, 90],
+        '099' => [106, 107],
+        '341' => [78, 79],
+        '371' => [106, 107],
+        '382' => [31, 32],
+        '402' => [76, 102],
+        '423' => [31, 32],
+        '227' => [16, 52],
         '232' => [112, 113],
+        '043' => [31, 32],
+        '558' => [43, 52],
+        '562' => [44, 52],
+        '566' => [45, 52],
+        '570' => [46, 52],
+        '614' => [86, 87, 88, 89],
+        '623' => [95, 111],
+        '624' => [95, 111],
         '244' => [14, 23, 33, 35, 56, 58, 59, 60, 61],
         '352' => [87, 88],
         '379' => [14, 23, 33, 35, 56, 58, 59, 60, 61],
-        '402' => [76, 102],
 
         '503' => [16, 52],
 
         '507' => [18, 112, 113],
 
-        '518' => [37, 67, 114],
+        '517' => [24, 67],
+        '518' => [24, 67, 114],
 
         '524' => [27, 62],
         '525' => [27, 62],
@@ -134,7 +159,8 @@ class DusakawiErrorParser implements ErrorParserInterface
         '529' => [28, 62],
         '530' => [28, 62],
 
-        '534' => [35, 52, 56, 58],
+        '534' => [35, 56, 58],
+        '600' => [78, 79],
         '537' => [36, 66],
         '542' => [37, 69],
         '354' => [88, 89],
@@ -170,8 +196,6 @@ class DusakawiErrorParser implements ErrorParserInterface
 
         '630' => [98, 118],
         '631' => [98, 118],
-        '636' => [102],
-        '637' => [102],
 
         '638' => [103, 104],
         '641' => [103, 104],
@@ -365,7 +389,7 @@ class DusakawiErrorParser implements ErrorParserInterface
          * Solo se divide cuando comienza un nuevo error reconocible.
          */
         $pattern =
-            '/(?='
+            '/(?:^|,\s*)(?='
             . '(?:Error|Warning)\s*\d{3}\b'
             . '|Error\s*:\s*La\s+estructura'
             . '|El\s+Campo\b'
@@ -708,19 +732,19 @@ class DusakawiErrorParser implements ErrorParserInterface
             $text,
             'el afiliado en mencion no fue identificado en el sistema'
         )) {
-            return 3;
+            /*
+             * Es un rechazo administrativo de afiliación. El tipo y el
+             * número de documento no deben deducirse por edad.
+             */
+            return null;
         }
 
-if (
-            str_contains(
-                $text,
-                'el peso de los ninos menores de 2 anos debe ser mayor o igual a 1 kg'
-            )
-        ) {
-            return 30;
-        }
-
-        $patterns = [
+$patterns = [
+    'el valor del campo 12 codigo de ocupacion no es valido' => 12,
+    'codigo de ocupacion no es valido' => 12,
+    'codigo de ocupacion' => 12,
+    'el peso de los ninos de 5 a 12 anos' => 30,
+    'la talla de los adultos mayores a 18 anos' => 32,
     'resultado hdl' => 95,
     'resultado hemoglobina' => 104,
     'resultado creatinina' => 107,

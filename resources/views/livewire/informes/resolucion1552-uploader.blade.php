@@ -18,7 +18,10 @@
                     </p>
                 </div>
 
-                <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                <div class="flex flex-col items-end gap-3">
+                    <a href="{{ route('informes.resolucion-1552.dusakawi.corregir') }}" class="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">Corregir informe rechazado</a>
+
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs">
                     <div class="rounded-2xl border border-neutral-200 bg-white/80 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900/80">
                         <p class="font-bold text-neutral-900 dark:text-white">TAB</p>
                         <p class="mt-1 text-neutral-500">Separador</p>
@@ -30,6 +33,7 @@
                     <div class="rounded-2xl border border-neutral-200 bg-white/80 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900/80">
                         <p class="font-bold text-neutral-900 dark:text-white">ZIP</p>
                         <p class="mt-1 text-neutral-500">Salida</p>
+                    </div>
                     </div>
                 </div>
             </div>
@@ -140,7 +144,7 @@
 
                 <ol class="mt-5 space-y-4 text-sm">
                     @foreach ([
-                        'Detectar hoja y encabezados',
+                        'Detectar formato DUSAKAWI o encabezados',
                         'Homologar columnas del Excel',
                         'Aplicar perfil de la IPS',
                         'Convertir especialidades oficiales',

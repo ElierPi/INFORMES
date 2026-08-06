@@ -39,6 +39,7 @@ class VariableResolver
         'obesidad desnutricion' => 21,
         'tacto rectal resultado' => 22,
         'resultado tacto rectal' => 22,
+        'resultado del tacto rectal' => 22,
         'acido folico preconcepcional' => 23,
         'sangre oculta resultado' => 24,
         'resultado sangre oculta' => 24,
@@ -55,11 +56,18 @@ class VariableResolver
         'fecha talla' => 31,
         'talla' => 32,
         'fecha probable parto' => 33,
+        'fecha probable de parto' => 33,
+        'resultado colonoscopia tamizaje' => 36,
+        'resultado de colonoscopia tamizaje' => 36,
         'riesgo gestacional' => 35,
 
         'resultado tamizaje vale' => 40,
         'tamizaje vale resultado' => 40,
         'fecha tamizaje vale' => 63,
+        'suministro metodo anticonceptivo' => 54,
+        'suministro de metodo anticonceptivo' => 54,
+        'fecha suministro metodo anticonceptivo' => 55,
+        'fecha de suministro de metodo anticonceptivo' => 55,
 
         'fecha valoracion agudeza visual' => 62,
         'fecha tacto rectal' => 64,
@@ -70,10 +78,14 @@ class VariableResolver
         'fecha toma psa' => 73,
 
         'resultado hepatitis b' => 79,
+        'resultado antigeno superficie hepatitis b' => 79,
+        'resultado de antigeno de superficie hepatitis b' => 79,
         'fecha sifilis' => 80,
         'resultado sifilis' => 81,
         'fecha vih' => 82,
         'resultado vih' => 83,
+        'resultado prueba para vih' => 83,
+        'resultado de prueba para vih' => 83,
         'fecha tsh neonatal' => 84,
         'resultado tsh neonatal' => 85,
 
@@ -84,6 +96,8 @@ class VariableResolver
         'resultado ldl' => 92,
         'resultado hdl' => 95,
         'fecha mamografia' => 96,
+        'fecha toma mamografia' => 96,
+        'fecha de toma de mamografia' => 96,
         'resultado mamografia' => 97,
 
         'resultado trigliceridos' => 98,
@@ -110,6 +124,11 @@ class VariableResolver
         'riesgo metabolico' => 117,
         'fecha trigliceridos' => 118,
         'fecha toma trigliceridos' => 118,
+        'fecha atencion salud bucal' => 76,
+        'fecha de atencion en salud bucal' => 76,
+        'cop por persona' => 102,
+        'fortificacion casera' => 70,
+        'suministro de fortificacion casera' => 70,
     ];
 
     public function resolve(array $error): ?int
@@ -169,12 +188,14 @@ class VariableResolver
         /*
          * Coincidencia parcial con alias.
          */
-        foreach ($this->aliases as $alias => $variable) {
-            if (
-                str_contains($field, $alias)
-                || str_contains($alias, $field)
-            ) {
-                return $variable;
+        if ($field !== '') {
+            foreach ($this->aliases as $alias => $variable) {
+                if (
+                    str_contains($field, $alias)
+                    || str_contains($alias, $field)
+                ) {
+                    return $variable;
+                }
             }
         }
 

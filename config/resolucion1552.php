@@ -6,9 +6,10 @@ return [
     'file' => [
         'extension' => 'zip',
         'txt_extension' => 'txt',
-        'delimiter' => "\t",
+        'delimiter' => '|',
         'encoding' => 'Windows-1252',
-        'has_header' => true,
+        'has_header' => false,
+        'include_header' => false,
 
         'filename_pattern' =>
             '/^RESOLUCION_1552_\d{2,12}_\d{8}\.zip$/i',
@@ -17,7 +18,7 @@ return [
             '/^RESOLUCION_1552_\d{2,12}_\d{8}\.txt$/i',
 
         'filename_example' =>
-            'RESOLUCION_1552_123456789012_31012026.zip',
+            'RESOLUCION_1552_123456789012_20260430.zip',
     ],
 
     /*
