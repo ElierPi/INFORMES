@@ -82,6 +82,15 @@ Route::view(
 
         Route::view('/sigires-cronicos', 'informes.sigires-cronicos')
             ->name('sigires-cronicos');
+
+        Route::view('/cronicos-dusakawi', 'informes.cronicos-dusakawi')
+            ->name('cronicos-dusakawi');
+
+        Route::view('/resolucion-1604/familiar-colombia', 'informes.resolucion-1604-familiar')
+            ->name('resolucion-1604.familiar-colombia');
+
+        Route::view('/resolucion-1604/familiar-colombia/corregir', 'informes.resolucion-1604-familiar-corregir')
+            ->name('resolucion-1604.familiar-colombia.corregir');
     });
 
 Route::middleware(['auth'])->group(function () {
@@ -325,6 +334,13 @@ Route::get(
         ]);
     }
 );
+Route::view('/informes/resolucion-1604/dusakawi', 'informes.resolucion-1604-dusakawi')
+    ->middleware(['auth', 'verified'])
+    ->name('informes.resolucion-1604.dusakawi');
+
+Route::view('/informes/resolucion-1604/dusakawi/corregir', 'informes.resolucion-1604-dusakawi-corregir')
+    ->middleware(['auth', 'verified'])
+    ->name('informes.resolucion-1604.dusakawi.corregir');
 
 
 

@@ -40,6 +40,15 @@
     'icon' => 'document',
 ],
 [
+    'name' => '1604 · Familiar Colombia · CIDSMA',
+    'description' => 'Valida gestión farmacéutica y genera TXT ANSI de 39 campos para el portal SIE de Familiar de Colombia.',
+    'route' => 'informes.resolucion-1604.familiar-colombia',
+    'status' => 'Activo',
+    'enabled' => true,
+    'accent' => 'emerald',
+    'icon' => 'document',
+],
+[
     'name' => '1552 · Proteger',
     'description' => 'Convierte el Excel institucional en TXT UTF-8 de 14 campos y genera el ZIP oficial.',
     'route' => 'informes.resolucion-1552.proteger',
@@ -100,6 +109,15 @@
                 'status' => 'Activo',
                 'enabled' => true,
                 'accent' => 'cyan',
+                'icon' => 'clipboard',
+            ],
+            [
+                'name' => 'Crónicos · DUSAKAWI',
+                'description' => 'Corrige el Excel de crónicos a partir del archivo de errores devuelto por DUSAKAWI.',
+                'route' => 'informes.cronicos-dusakawi',
+                'status' => 'Activo',
+                'enabled' => true,
+                'accent' => 'blue',
                 'icon' => 'clipboard',
             ],
         ];
