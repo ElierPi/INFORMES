@@ -10,6 +10,23 @@ use ZipArchive;
 
 final class DusakawiZipCorrectionService
 {
+    /**
+     * Solicitud administrativa específica para los siete registros
+     * de septiembre de 2026. Esta tabla NO es una regla general
+     * TI=>CC / RC=>TI aplicable a todos los afiliados.
+     *
+     * La EPS debe validar los tipos de documento reales.
+     */
+    private const ID_TYPE_CHANGES_202609 = [
+        '45|TI|1134170174' => 'CC',
+        '141|RC|1124077768' => 'TI',
+        '157|RC|1175718220' => 'TI',
+        '170|RC|1175718544' => 'TI',
+        '205|RC|1121557251' => 'TI',
+        '214|RC|1121557662' => 'TI',
+        '236|RC|1175717859' => 'TI',
+    ];
+
     public function __construct(
         private readonly ErrorParserManager $parserManager,
         private readonly RuleEngine $ruleEngine,
@@ -128,6 +145,77 @@ final class DusakawiZipCorrectionService
             }
 
             $record = &$indexed['records'][$recordKey];
+
+            /*
+             * En los siete rechazos administrativos expresamente
+             * identificados por el usuario, se registra una propuesta
+             * de cambio de tipo, sin tocar el número de documento.
+             * Nunca se ejecuta sobre un mensaje clínico ni sobre otro
+             * registro con el mismo tipo pero documento diferente.
+             */
+            $administrativeError = str_contains(
+                strtolower((string) ($error['mensaje'] ?? '')),
+                'no fue identificado en el sistema'
+            );
+
+            if ($administrativeError) {
+                $recordNumber = trim((string) (
+                    $record['record_number'] ?? ''
+                ));
+                $type = strtoupper(trim((string) (
+                    $record['variables'][3] ?? ''
+                )));
+                $number = $this->normalizeIdentification(
+                    $record['variables'][4] ?? null
+                );
+                $sourceMatches = $recordNumber === trim((string) (
+                    $error['linea'] ?? $error['fila'] ?? ''
+                ))
+                    && $type === strtoupper(trim((string) (
+                        $error['tipo_identificacion'] ?? ''
+                    )))
+                    && $number === $this->normalizeIdentification(
+                        $error['identificacion'] ?? null
+                    );
+                $lookup = "{$recordNumber}|{$type}|{$number}";
+                $target = $sourceMatches
+                    ? (self::ID_TYPE_CHANGES_202609[$lookup] ?? null)
+                    : null;
+
+                if ($target !== null) {
+                    $record['variables'][3] = $target;
+                    $corrections[] = $this->buildResult(
+                        record: $record,
+                        error: $error,
+                        variable: 3,
+                        oldValue: $type,
+                        newValue: $target,
+                        status: 'automatic',
+                        reason: 'Tipo de identificación ajustado solo para '
+                            . 'este rechazo administrativo de septiembre 2026, '
+                            . 'según instrucción del usuario. '
+                            . 'Requiere comprobación ante la EPS.',
+                        rule: 'DusakawiSpecificIdTypeCorrection202609'
+                    );
+                } else {
+                    $pending[] = $this->buildResult(
+                        record: $record,
+                        error: $error,
+                        variable: 3,
+                        oldValue: $type,
+                        newValue: null,
+                        status: 'manual',
+                        reason: 'Afiliado no encontrado; este registro no está '
+                            . 'en la lista de los siete cambios solicitados '
+                            . 'o no coincide con el TXT y error cargados. '
+                            . 'Verificar tipo y número de identidad con la EPS.',
+                        rule: 'DusakawiSpecificIdTypeCorrection202609'
+                    );
+                }
+
+                unset($record);
+                continue;
+            }
 
             $decision = $this->ruleEngine->resolve(
                 $record,
