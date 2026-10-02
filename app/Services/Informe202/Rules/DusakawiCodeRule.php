@@ -364,7 +364,7 @@ if (
         }
 
         if ($code === '625' && $variable === 95) {
-            return $this->hdlAlreadyNoAplica625($record);
+            return $this->hdlConditional625($record, $error);
         }
 
         if ($code === '546' && $variable === 75) {
@@ -393,11 +393,7 @@ if (
             $variable === 30
             && str_contains($message, 'el peso de los')
         ) {
-            return $this->manual(
-                variable: 30,
-                currentValue: $currentValue,
-                reason: 'El peso fue rechazado por la EPS. Verificar el valor real en la historia clínica; no se modifica automáticamente.'
-            );
+            return $this->verifiedWeightOnly($record, $error);
         }
 
         if (
@@ -3813,19 +3809,158 @@ private function bacilloscopyNotSymptomatic506(array $record): RuleDecision
 }
 
 /**
- * Error 625: detectar el caso en el que el HDL ya figura No aplica.
- * No alterar el riesgo cardiovascular ni la fecha de nacimiento.
+ * Error 625: el mensaje de la EPS trae la fecha de nacimiento del
+ * sistema, que puede ser distinta de la registrada en el TXT.
+ *
+ * Si la EPS calcula >=29 anios, existe el par NO APLICA y no hay
+ * laboratorio medido, usar SIN DATO, sin inventar resultado ni fecha.
+ * La discrepancia de nacimiento queda explicitamente en auditoria.
  */
-private function hdlAlreadyNoAplica625(array $record): RuleDecision
+private function hdlConditional625(array $record, array $error): RuleDecision
 {
     $v = $record['variables'] ?? [];
+    $result = trim((string) ($v[95] ?? ''));
+    $hdlDate = trim((string) ($v[111] ?? ''));
+    $risk = trim((string) ($v[114] ?? ''));
+    $systemBirthText = trim((string) ($error['fecha_nacimiento_sistema'] ?? ''));
+    $txtBirthText = trim((string) ($v[9] ?? ''));
+    $cutoffText = trim((string) ($record['cutoff_date'] ?? ''));
+
+    if (
+        $systemBirthText === ''
+        || $cutoffText === ''
+    ) {
+        return $this->manual(
+            variable: 95,
+            currentValue: $result,
+            reason: 'Error 625: falta fecha de nacimiento del sistema de la EPS o fecha de corte; no se altera el bloque HDL.'
+        );
+    }
+
+    $birth = \DateTimeImmutable::createFromFormat('!Y-m-d', $systemBirthText);
+    $cutoff = \DateTimeImmutable::createFromFormat('!Y-m-d', $cutoffText);
+
+    if (
+        ! $birth instanceof \DateTimeImmutable
+        || ! $cutoff instanceof \DateTimeImmutable
+        || $birth > $cutoff
+    ) {
+        return $this->manual(
+            variable: 95,
+            currentValue: $result,
+            reason: 'Error 625: fecha de nacimiento de la EPS o fecha de corte invalida.'
+        );
+    }
+
+    $epsAge = $birth->diff($cutoff)->y;
+    $birthDifference = ($systemBirthText !== $txtBirthText)
+        ? " ATENCION: nacimiento EPS {$systemBirthText} distinto del TXT {$txtBirthText}; verificar documento fuente sin cambiarlo automaticamente."
+        : '';
+
+    if (
+        $epsAge >= 29
+        && $result === '0'
+        && $hdlDate === self::NO_APLICA_DATE
+        && $risk === '21'
+    ) {
+        return $this->automaticBlock(
+            record: $record,
+            changes: [
+                95 => 998, // Riesgo no evaluado segun catalogo; NO es un HDL medido.
+                111 => '1800-01-01', // Sin dato; NO representa toma real.
+            ],
+            reason: "Error 625: edad EPS {$epsAge} al corte; el par No aplica no procede para esta edad y no existe HDL clinico medido en el TXT. Se usa 998 (Riesgo no evaluado) y 1800-01-01 (No se tiene el dato)."
+                . $birthDifference
+                . ' La EPS debe validar que estos comodines sean aceptados para este rechazo.'
+        );
+    }
+
+    if ($epsAge < 29 && $result === '0' && $hdlDate === self::NO_APLICA_DATE) {
+        return $this->manual(
+            variable: 95,
+            currentValue: $result,
+            reason: "Error 625: la EPS calcula {$epsAge} anios y el par HDL ya es No aplica. Riesgo cardiovascular={$risk}; verificar clasificacion real antes de modificarla."
+                . $birthDifference
+        );
+    }
+
     return $this->manual(
         variable: 95,
-        currentValue: $v[95] ?? null,
-        reason: 'Error 625: resultado HDL=' . ($v[95] ?? '')
-            . ', fecha HDL=' . ($v[111] ?? '')
-            . ', riesgo cardiovascular=' . ($v[114] ?? '')
-            . '. Confirmar con DUSAKAWI por qué rechaza el par ya registrado como No aplica; no se inventan datos.'
+        currentValue: $result,
+        reason: "Error 625: edad EPS {$epsAge}, resultado HDL={$result}, fecha={$hdlDate}, riesgo={$risk}. No se sustituye un HDL clinico real ni se deducen riesgos."
+            . $birthDifference
+    );
+}
+
+/**
+ * Peso: solo corrige cuando la IPS haya introducido un valor
+ * documentado en config/informe202_dusakawi_verificados.php.
+ * Tres verificaciones independientes: linea, tipo, documento y peso
+ * actual esperado. Evita corregir por accidente otro periodo o fila.
+ */
+private function verifiedWeightOnly(array $record, array $error): RuleDecision
+{
+    $v = $record['variables'] ?? [];
+    $current = trim((string) ($v[30] ?? ''));
+    $line = trim((string) ($error['linea'] ?? $record['record_number'] ?? ''));
+    $type = strtoupper(trim((string) ($v[3] ?? '')));
+    $doc = trim((string) ($v[4] ?? ''));
+    $key = "{$line}|{$type}|{$doc}";
+
+    $configured = config('informe202_dusakawi_verificados.pesos', []);
+    $entry = is_array($configured) ? ($configured[$key] ?? null) : null;
+
+    if (! is_array($entry) || ($entry['peso_kg'] ?? null) === null || ($entry['soporte'] ?? '') === '') {
+        return $this->manual(
+            variable: 30,
+            currentValue: $current,
+            reason: "Peso de la fila {$line} no verificado. Para automatizarlo, registrar peso real y soporte clinico en config/informe202_dusakawi_verificados.php. No se infieren decimales."
+        );
+    }
+
+    $expected = trim((string) ($entry['valor_actual'] ?? ''));
+    $period = trim((string) ($entry['corte'] ?? ''));
+    $cutoff = trim((string) ($record['cutoff_date'] ?? ''));
+    $source = trim((string) $entry['soporte']);
+    $new = str_replace(',', '.', trim((string) $entry['peso_kg']));
+
+    if ($expected !== $current || $period !== $cutoff || ! is_numeric($new)) {
+        return $this->manual(
+            variable: 30,
+            currentValue: $current,
+            reason: "El peso verificado para {$key} no coincide con periodo/valor original o no es numerico. Validar configuracion."
+        );
+    }
+
+    $years = $record['age']['years'] ?? null;
+    $months = $record['age']['months'] ?? null;
+    if (! is_numeric($months) && is_numeric($years)) {
+        $months = (int) $years * 12;
+    }
+    if (! is_numeric($months)) {
+        return $this->manual(variable: 30, currentValue: $current,
+            reason: 'No se pudo comprobar la edad al corte para validar el peso confirmado.');
+    }
+    $ageMonths = (float) $months;
+    $weight = (float) $new;
+
+    $validRange = $ageMonths < 24
+        ? ($weight >= 1.0 && $weight <= 15.0)
+        : ($ageMonths >= 216 && $weight >= 36.0 && $weight <= 250.0);
+
+    if (! $validRange) {
+        return $this->manual(
+            variable: 30,
+            currentValue: $current,
+            reason: "El peso confirmado {$new} kg no cumple el rango de validacion disponible para esta edad, o corresponde a un grupo sin rango configurado. Revisar."
+        );
+    }
+
+    return $this->automaticOrValid(
+        variable: 30,
+        currentValue: $current,
+        newValue: $new,
+        reason: "Peso documentado y verificado por la IPS. Soporte: {$source}. Periodo {$period}; coincidencia de linea, documento y valor original comprobada."
     );
 }
 
