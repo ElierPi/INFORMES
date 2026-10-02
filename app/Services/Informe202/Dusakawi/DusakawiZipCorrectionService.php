@@ -217,6 +217,99 @@ final class DusakawiZipCorrectionService
                 continue;
             }
 
+            /*
+             * Septiembre 2026: los siete afiliados cuyo tipo de documento
+             * se corrigió reciben ahora un rechazo de ocupación.
+             * Este tratamiento verifica simultáneamente línea, tipo,
+             * identificación, fecha de corte, mensaje y ocupación anterior.
+             * Así se preservan el resto de registros y las reglas clínicas.
+             */
+            $occupationKey = trim((string) (
+                $error['linea'] ?? $error['fila'] ?? ''
+            )) . '|' . strtoupper(trim((string) (
+                $error['tipo_identificacion'] ?? ''
+            ))) . '|' . $this->normalizeIdentification(
+                $error['identificacion'] ?? null
+            );
+
+            $occupationTargets = [
+                '45|CC|1134170174' => '0004',
+                '141|TI|1124077768' => 'NA',
+                '157|TI|1175718220' => 'NA',
+                '170|TI|1175718544' => 'NA',
+                '205|TI|1121557251' => 'NA',
+                '214|TI|1121557662' => 'NA',
+                '236|TI|1175717859' => 'NA',
+            ];
+
+            $rawMessage = (string) ($error['mensaje'] ?? '');
+            $asciiMessage = iconv(
+                'UTF-8',
+                'ASCII//TRANSLIT//IGNORE',
+                $rawMessage
+            );
+            $occupationMessage = strtolower(
+                $asciiMessage !== false ? $asciiMessage : $rawMessage
+            );
+            $isOccupationRejection =
+                str_contains($occupationMessage, 'codigo de ocupacion')
+                || str_contains($occupationMessage, 'campo 12');
+
+            $recordOccupationKey = trim((string) (
+                $record['record_number'] ?? ''
+            )) . '|' . strtoupper(trim((string) (
+                $record['variables'][3] ?? ''
+            ))) . '|' . $this->normalizeIdentification(
+                $record['variables'][4] ?? null
+            );
+
+            if (
+                $effectiveCutoffDate === '2026-09-30'
+                && $isOccupationRejection
+                && isset($occupationTargets[$occupationKey])
+                && $recordOccupationKey === $occupationKey
+            ) {
+                $before = trim((string) (
+                    $record['variables'][12] ?? ''
+                ));
+                $expected = $occupationTargets[$occupationKey];
+
+                if ($before === $expected) {
+                    $record['variables'][12] = '9999';
+                    $corrections[] = $this->buildResult(
+                        record: $record,
+                        error: $error,
+                        variable: 12,
+                        oldValue: $before,
+                        newValue: '9999',
+                        status: 'automatic',
+                        reason: 'Ocupación rechazada por DUSAKAWI. '
+                            . 'Se utiliza el código 9999 (sin información) '
+                            . 'solo para el registro de septiembre '
+                            . 'identificado de forma exacta.',
+                        rule: 'DusakawiOccupation202609'
+                    );
+                    unset($record);
+                    continue;
+                }
+
+                if ($before === '9999') {
+                    $valid[] = $this->buildResult(
+                        record: $record,
+                        error: $error,
+                        variable: 12,
+                        oldValue: $before,
+                        newValue: '9999',
+                        status: 'valid',
+                        reason: 'La ocupación ya está normalizada en 9999.',
+                        rule: 'DusakawiOccupation202609'
+                    );
+                    unset($record);
+                    continue;
+                }
+                // Si el dato cambió, delegar la decisión al motor general.
+            }
+
             $decision = $this->ruleEngine->resolve(
                 $record,
                 $error
