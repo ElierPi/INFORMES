@@ -36,6 +36,10 @@ class ProtegerCodeRule implements RuleInterface
         }
 
         return match ($pattern) {
+            'mini_mental_sin_fecha_valoracion' => $this->normalizeMiniMentalWithoutIntegralDate(
+                variable: $variable,
+                record: $record
+            ),
             'tacto_rectal_no_evaluado' => $this->tactoRectalNoEvaluado(
                 variable: $variable,
                 record: $record
@@ -137,6 +141,17 @@ class ProtegerCodeRule implements RuleInterface
         );
 
         return match (true) {
+            $code === '17'
+                || str_contains(
+                    $message,
+                    'resultado de prueba mini mental state'
+                )
+                    && str_contains(
+                        $message,
+                        'fecha de consulta de valoracion integral valida'
+                    )
+                => 'mini_mental_sin_fecha_valoracion',
+
             $code === '30'
                 || str_contains($message, 'si resultado de tacto rectal es riesgo no evaluado')
                 => 'tacto_rectal_no_evaluado',
@@ -226,6 +241,93 @@ class ProtegerCodeRule implements RuleInterface
 
             default => null,
         };
+    }
+
+    /**
+     * Proteger código 17.
+     *
+     * Si hay un resultado de prueba mini-mental state en la variable 16
+     * pero la variable 52 no contiene una fecha real de Consulta de
+     * Valoración Integral, no se inventa la fecha: se normaliza el
+     * resultado mini-mental a 0 (No aplica).
+     */
+    private function normalizeMiniMentalWithoutIntegralDate(
+        int $variable,
+        array $record
+    ): RuleDecision {
+        $variables = $record['variables'] ?? [];
+
+        $currentResult = trim(
+            (string) ($variables[16] ?? '')
+        );
+
+        $integralDateRaw = trim(
+            (string) ($variables[52] ?? '')
+        );
+
+        /*
+         * Solo se considera fecha real si es una fecha válida y además
+         * no corresponde a los comodines 1800-01-01 / 1845-01-01.
+         */
+        $integralDate = $this->parseDate(
+            $integralDateRaw
+        );
+
+        $hasRealIntegralDate =
+            $integralDate instanceof DateTimeImmutable
+            && ! in_array(
+                $integralDateRaw,
+                [
+                    self::NO_DATA_DATE,
+                    self::NO_APLICA_DATE,
+                ],
+                true
+            );
+
+        /*
+         * Si ya está en 0, la fila ya cumple la regla.
+         */
+        if ($currentResult === '0') {
+            return RuleDecision::valid(
+                variable: $variable,
+                currentValue: $variables[$variable] ?? null,
+                reason:
+                    'El resultado mini-mental ya está en 0 (No aplica).',
+                rule: self::class
+            );
+        }
+
+        /*
+         * Si sí existe una fecha real de valoración integral, no se debe
+         * borrar un resultado clínico válido.
+         */
+        if ($hasRealIntegralDate) {
+            return RuleDecision::valid(
+                variable: $variable,
+                currentValue: $variables[$variable] ?? null,
+                reason:
+                    'Existe una fecha real de Consulta de Valoración Integral; '
+                    . 'se conserva el resultado mini-mental.',
+                rule: self::class
+            );
+        }
+
+        /*
+         * No hay fecha real: no inventamos fecha.
+         * Se cambia únicamente la variable 16 a 0.
+         */
+        return $this->block(
+            variable: $variable,
+            record: $record,
+            changes: [
+                16 => 0,
+            ],
+            reason:
+                'Hay resultado de prueba mini-mental state pero no existe '
+                . 'una fecha real de Consulta de Valoración Integral '
+                . '(variable 52). No se inventa una fecha; el resultado '
+                . 'mini-mental se normalizó a 0 (No aplica).'
+        );
     }
 
     private function tactoRectalNoEvaluado(

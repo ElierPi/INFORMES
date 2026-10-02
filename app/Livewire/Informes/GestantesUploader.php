@@ -21,36 +21,37 @@ class GestantesUploader extends Component
     public $archivo;
 
     public array $errorsReport = [];
-
     public array $summary = [];
-
     public bool $analyzed = false;
 
-    public ?string $txtPath = null;
-
-    public ?string $zipPath = null;
-
-    /**
-     * Ruta relativa del Excel original almacenado.
-     */
     public ?string $uploadedPath = null;
-
-    /**
-     * Ruta absoluta del Excel corregido.
-     */
     public ?string $correctedFile = null;
+    public ?string $correctedDownloadName = null;
 
     public array $corrections = [];
-
     public int $totalCorrections = 0;
 
     /**
-     * Analiza el archivo, valida su contenido y genera TXT/ZIP
-     * únicamente cuando no existen errores.
+     * Rutas relativas en storage local.
+     * Se generan únicamente cuando el Excel corregido queda válido.
+     */
+    public ?string $txtPath = null;
+    public ?string $zipPath = null;
+
+    /**
+     * Flujo de Gestante semanal:
+     *
+     * Excel original
+     * -> corrección segura
+     * -> relectura
+     * -> validación
+     * -> Excel corregido siempre disponible
+     * -> si queda válido: TXT ANSI + ZIP para SIGIRES.
      */
     public function analyze(
         GestantesExcelReader $reader,
         GestantesValidationService $validator,
+        GestantesAutoCorrector $corrector,
         GestantesTxtGenerator $txtGenerator,
         GestantesZipGenerator $zipGenerator
     ): void {
@@ -63,185 +64,74 @@ class GestantesUploader extends Component
                 'mimes:xlsx,xls',
                 'max:30720',
             ],
+        ], [
+            'archivo.required' => 'Selecciona el Excel semanal de gestantes.',
+            'archivo.mimes' => 'El archivo debe ser Excel (.xlsx o .xls).',
         ]);
 
         try {
+            $this->resetProcessResults();
+
+            $originalName = $this->archivo->getClientOriginalName();
+
             /*
-             * Guardamos una copia permanente del archivo cargado.
-             * Esto permite corregirlo y descargarlo en solicitudes
-             * posteriores de Livewire.
+             * El corrector genera XLSX. Conservamos el nombre base
+             * del archivo que el usuario cargó.
              */
+            $this->correctedDownloadName =
+                pathinfo($originalName, PATHINFO_FILENAME).'.xlsx';
+
             $this->uploadedPath = $this->archivo->store(
                 'gestantes/uploads',
                 'local'
             );
 
-            $absolutePath = Storage::disk('local')->path(
+            $sourcePath = Storage::disk('local')->path(
                 $this->uploadedPath
             );
 
-            if (! is_file($absolutePath)) {
+            if (! is_file($sourcePath)) {
                 throw new RuntimeException(
                     'No fue posible almacenar el archivo Excel cargado.'
                 );
             }
 
-            $data = $reader->read($absolutePath);
-            $result = $validator->validate($data);
+            $timestamp = now()->format('Ymd_His_u');
 
-            $this->errorsReport = $result['errors'] ?? [];
-            $this->summary = $result['summary'] ?? [];
-            $this->analyzed = true;
+            $correctedDirectory = storage_path(
+                "app/private/gestantes/corregidos/{$timestamp}"
+            );
 
-            /*
-             * Limpiamos archivos TXT y ZIP anteriores.
-             */
-            $this->txtPath = null;
-            $this->zipPath = null;
-
-            /*
-             * Si existen errores, se detiene la generación.
-             */
-            if (! ($result['valid'] ?? false)) {
-                return;
+            if (! is_dir($correctedDirectory)) {
+                mkdir($correctedDirectory, 0775, true);
             }
 
-$timestamp = now()->format('Ymd_His');
-
-$relativeDirectory =
-    "gestantes/generated/{$timestamp}";
-
-/*
- * Ruta temporal.
- *
- * El GestantesTxtGenerator reemplazará este nombre
- * por el nombre oficial:
- *
- * GESTANTE_MSPS_CODIGOHABILITACION_DDMMAAAA.txt
- */
-$temporaryTxtRelativePath =
-    "{$relativeDirectory}/gestantes.txt";
-
-$temporaryTxtAbsolutePath = Storage::disk('local')->path(
-    $temporaryTxtRelativePath
-);
-
-/*
- * Guardamos la ruta real que devuelve el generador.
- */
-$generatedTxtAbsolutePath = $txtGenerator->generate(
-    data: $data,
-    outputPath: $temporaryTxtAbsolutePath
-);
-
-if (! is_file($generatedTxtAbsolutePath)) {
-    throw new RuntimeException(
-        'El generador terminó, pero no se encontró el TXT generado.'
-    );
-}
-
-/*
- * El ZIP tendrá exactamente el mismo nombre base que el TXT.
- */
-$generatedFileName = basename(
-    $generatedTxtAbsolutePath
-);
-
-$generatedBaseName = pathinfo(
-    $generatedFileName,
-    PATHINFO_FILENAME
-);
-
-$generatedDirectory = dirname(
-    $generatedTxtAbsolutePath
-);
-
-$generatedZipAbsolutePath =
-    $generatedDirectory
-    . DIRECTORY_SEPARATOR
-    . $generatedBaseName
-    . '.zip';
-
-$generatedZipAbsolutePath = $zipGenerator->generate(
-    txtPath: $generatedTxtAbsolutePath,
-    zipPath: $generatedZipAbsolutePath
-);
-
-/*
- * Convertimos las rutas absolutas a rutas relativas
- * para poder descargarlas con Storage.
- */
-$localRoot = rtrim(
-    Storage::disk('local')->path(''),
-    DIRECTORY_SEPARATOR
-);
-
-$this->txtPath = ltrim(
-    str_replace(
-        $localRoot,
-        '',
-        $generatedTxtAbsolutePath
-    ),
-    DIRECTORY_SEPARATOR
-);
-
-$this->zipPath = ltrim(
-    str_replace(
-        $localRoot,
-        '',
-        $generatedZipAbsolutePath
-    ),
-    DIRECTORY_SEPARATOR
-);
-
-            session()->flash(
-                'success',
-                'El archivo fue validado correctamente y se generaron el TXT y el ZIP.'
-            );
-        } catch (Throwable $exception) {
-            report($exception);
-
-            $this->analyzed = false;
-            $this->summary = [];
-            $this->errorsReport = [];
-            $this->txtPath = null;
-            $this->zipPath = null;
-
-            $this->addError(
-                'archivo',
-                'No fue posible analizar el archivo: '.
-                $exception->getMessage()
-            );
-        }
-    }
-
-    /**
-     * Corrige automáticamente los errores permitidos.
-     */
-    public function autoCorrect(
-        GestantesAutoCorrector $corrector
-    ): void {
-        $this->resetErrorBag('correction');
-
-        try {
-            $sourcePath = $this->resolveSourcePath();
-
-            $result = $corrector->correct($sourcePath);
+            $correctedPath =
+                $correctedDirectory
+                .DIRECTORY_SEPARATOR
+                .$this->correctedDownloadName;
 
             /*
-             * El servicio puede devolver claves en español o inglés.
+             * 1. CORREGIR
              */
-            $this->correctedFile = $result['ruta']
-                ?? $result['path']
+            $correctionResult = $corrector->correct(
+                sourcePath: $sourcePath,
+                destinationPath: $correctedPath
+            );
+
+            $this->correctedFile =
+                $correctionResult['path']
+                ?? $correctionResult['ruta']
                 ?? null;
 
-            $this->corrections = $result['correcciones']
-                ?? $result['corrections']
+            $this->corrections =
+                $correctionResult['corrections']
+                ?? $correctionResult['correcciones']
                 ?? [];
 
             $this->totalCorrections = (int) (
-                $result['total_corrections']
-                ?? $result['totalCorrections']
+                $correctionResult['total_corrections']
+                ?? $correctionResult['totalCorrections']
                 ?? count($this->corrections)
             );
 
@@ -255,29 +145,149 @@ $this->zipPath = ltrim(
                 );
             }
 
-            session()->flash(
-                'success',
-                "Se realizaron {$this->totalCorrections} ".
-                'correcciones automáticas. Ya puedes descargar el Excel corregido.'
+            /*
+             * 2. LEER Y VALIDAR EL EXCEL YA CORREGIDO
+             */
+            $data = $reader->read($this->correctedFile);
+            $validation = $validator->validate($data);
+
+            $this->errorsReport = $validation['errors'] ?? [];
+            $this->summary = $validation['summary'] ?? [];
+            $this->analyzed = true;
+
+            /*
+             * IMPORTANTE:
+             * Los pendientes NO bloquean la generación.
+             *
+             * El objetivo de "Gestante semanal" es:
+             * 1. aplicar todas las correcciones seguras conocidas;
+             * 2. mostrar las novedades internas;
+             * 3. generar SIEMPRE el TXT/ZIP para probarlo en SIGIRES;
+             * 4. usar después el LOG real de la EPS en el corrector SIGIRES.
+             */
+            /*
+             * 3. GENERAR TXT OFICIAL PARA SIGIRES
+             *
+             * El propio GestantesTxtGenerator:
+             * - obtiene el código de habilitación desde registro tipo 2
+             * - usa nombre GESTANTE_MSPS_CODIGOHABILITACION_DDMMAAAA.txt
+             * - separa con |
+             * - genera ANSI Windows-1252
+             * - usa CRLF
+             */
+            $generatedRelativeDirectory =
+                "gestantes/generated/{$timestamp}";
+
+            $temporaryTxtAbsolutePath = Storage::disk('local')->path(
+                "{$generatedRelativeDirectory}/gestantes.txt"
             );
+
+            $generatedTxtAbsolutePath = $txtGenerator->generate(
+                data: $data,
+                outputPath: $temporaryTxtAbsolutePath
+            );
+
+            if (! is_file($generatedTxtAbsolutePath)) {
+                throw new RuntimeException(
+                    'El generador terminó, pero no se encontró el TXT.'
+                );
+            }
+
+            /*
+             * 4. COMPRIMIR TXT EN ZIP CON EL MISMO NOMBRE BASE.
+             */
+            $generatedBaseName = pathinfo(
+                basename($generatedTxtAbsolutePath),
+                PATHINFO_FILENAME
+            );
+
+            $generatedZipAbsolutePath =
+                dirname($generatedTxtAbsolutePath)
+                .DIRECTORY_SEPARATOR
+                .$generatedBaseName
+                .'.zip';
+
+            $generatedZipAbsolutePath = $zipGenerator->generate(
+                txtPath: $generatedTxtAbsolutePath,
+                zipPath: $generatedZipAbsolutePath
+            );
+
+            $localRoot = rtrim(
+                Storage::disk('local')->path(''),
+                DIRECTORY_SEPARATOR
+            );
+
+            $this->txtPath = ltrim(
+                str_replace(
+                    $localRoot,
+                    '',
+                    $generatedTxtAbsolutePath
+                ),
+                DIRECTORY_SEPARATOR
+            );
+
+            $this->zipPath = ltrim(
+                str_replace(
+                    $localRoot,
+                    '',
+                    $generatedZipAbsolutePath
+                ),
+                DIRECTORY_SEPARATOR
+            );
+
+            if ($this->errorsReport === []) {
+                session()->flash(
+                    'success',
+                    "Excel corregido. Se aplicaron {$this->totalCorrections} correcciones automáticas y se generó el ZIP para SIGIRES sin pendientes internos."
+                );
+            } else {
+                session()->flash(
+                    'warning',
+                    "Excel corregido y ZIP generado para SIGIRES. Se aplicaron {$this->totalCorrections} correcciones automáticas y quedan ".
+                    count($this->errorsReport).
+                    ' pendientes internos. Puedes cargar el ZIP en SIGIRES y luego corregiremos la devolución real de la EPS en el corrector.'
+                );
+            }
         } catch (Throwable $exception) {
             report($exception);
 
+            $this->analyzed = false;
+            $this->summary = [];
+            $this->errorsReport = [];
             $this->correctedFile = null;
+            $this->correctedDownloadName = null;
             $this->corrections = [];
             $this->totalCorrections = 0;
+            $this->txtPath = null;
+            $this->zipPath = null;
 
             $this->addError(
-                'correction',
-                'No fue posible corregir el archivo: '.
+                'archivo',
+                'No fue posible validar y preparar el reporte semanal: '.
                 $exception->getMessage()
             );
         }
     }
 
     /**
-     * Descarga el Excel corregido.
+     * Compatibilidad con el botón/flujo anterior.
      */
+    public function autoCorrect(
+        GestantesExcelReader $reader,
+        GestantesValidationService $validator,
+        GestantesAutoCorrector $corrector,
+        GestantesTxtGenerator $txtGenerator,
+        GestantesZipGenerator $zipGenerator
+    ): void {
+        $this->analyze(
+            $reader,
+            $validator,
+            $corrector,
+            $txtGenerator,
+            $zipGenerator
+        );
+    }
+
     public function downloadCorrectedExcel(): BinaryFileResponse
     {
         if (
@@ -286,14 +296,13 @@ $this->zipPath = ltrim(
             || ! is_file($this->correctedFile)
         ) {
             throw new RuntimeException(
-                'No se encontró el archivo Excel corregido. '.
-                'Ejecuta primero la corrección automática.'
+                'No se encontró el Excel corregido. Ejecuta primero "Validar y corregir".'
             );
         }
 
         return response()->download(
             $this->correctedFile,
-            basename($this->correctedFile),
+            $this->correctedDownloadName ?: basename($this->correctedFile),
             [
                 'Content-Type' =>
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -301,9 +310,6 @@ $this->zipPath = ltrim(
         );
     }
 
-    /**
-     * Descarga el TXT generado.
-     */
     public function downloadTxt()
     {
         abort_unless(
@@ -318,9 +324,6 @@ $this->zipPath = ltrim(
         );
     }
 
-    /**
-     * Descarga el ZIP generado.
-     */
     public function downloadZip()
     {
         abort_unless(
@@ -335,83 +338,28 @@ $this->zipPath = ltrim(
         );
     }
 
-    /**
-     * Limpia resultados anteriores al seleccionar otro Excel.
-     */
     public function updatedArchivo(): void
     {
         $this->resetValidation();
+        $this->resetProcessResults();
+        $this->uploadedPath = null;
+    }
 
+    private function resetProcessResults(): void
+    {
         $this->analyzed = false;
         $this->summary = [];
         $this->errorsReport = [];
-
-        $this->txtPath = null;
-        $this->zipPath = null;
-        $this->uploadedPath = null;
-
         $this->correctedFile = null;
+        $this->correctedDownloadName = null;
         $this->corrections = [];
         $this->totalCorrections = 0;
-    }
-
-    /**
-     * Obtiene la ruta absoluta del Excel que será corregido.
-     */
-    private function resolveSourcePath(): string
-    {
-        /*
-         * Preferimos el archivo almacenado durante el análisis.
-         */
-        if (
-            $this->uploadedPath
-            && Storage::disk('local')->exists($this->uploadedPath)
-        ) {
-            return Storage::disk('local')->path(
-                $this->uploadedPath
-            );
-        }
-
-        /*
-         * También permitimos corregir sin analizar previamente.
-         */
-        if (! $this->archivo) {
-            throw new RuntimeException(
-                'Primero debes seleccionar un archivo Excel.'
-            );
-        }
-
-        $this->validate([
-            'archivo' => [
-                'required',
-                'file',
-                'mimes:xlsx,xls',
-                'max:30720',
-            ],
-        ]);
-
-        $this->uploadedPath = $this->archivo->store(
-            'gestantes/uploads',
-            'local'
-        );
-
-        $absolutePath = Storage::disk('local')->path(
-            $this->uploadedPath
-        );
-
-        if (! is_file($absolutePath)) {
-            throw new RuntimeException(
-                'No fue posible acceder al archivo Excel cargado.'
-            );
-        }
-
-        return $absolutePath;
+        $this->txtPath = null;
+        $this->zipPath = null;
     }
 
     public function render()
     {
-        return view(
-            'livewire.informes.gestantes-uploader'
-        );
+        return view('livewire.informes.gestantes-uploader');
     }
 }

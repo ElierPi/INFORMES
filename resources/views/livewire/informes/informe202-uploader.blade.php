@@ -146,6 +146,42 @@
                 @enderror
             </div>
 
+            @if ($eps === 'proteger')
+                {{-- NIT para el nombre del TXT de Proteger --}}
+                <div>
+                    <label
+                        for="nitProteger"
+                        class="mb-2 block text-sm font-medium text-zinc-700
+                               dark:text-zinc-300"
+                    >
+                        NIT para el TXT de Proteger
+                    </label>
+
+                    <input
+                        id="nitProteger"
+                        type="text"
+                        inputmode="numeric"
+                        maxlength="12"
+                        wire:model="nitProteger"
+                        placeholder="Ej. 900144397"
+                        class="w-full rounded-lg border border-zinc-300
+                               bg-white px-3 py-2 text-sm
+                               dark:border-zinc-600 dark:bg-zinc-800
+                               dark:text-white"
+                    >
+
+                    <p class="mt-1 text-xs text-zinc-500">
+                        El TXT se nombrará como NIT_MMYYYY.txt. Escríbelo sin puntos ni guiones.
+                    </p>
+
+                    @error('nitProteger')
+                        <p class="mt-2 text-sm text-red-600">
+                            {{ $message }}
+                        </p>
+                    @enderror
+                </div>
+            @endif
+
             {{-- Archivo original --}}
             <div>
                 <label
@@ -391,53 +427,106 @@
 
         </div>
 
-        {{-- Botón de descarga --}}
+        {{-- Archivos generados --}}
 @if ($archivoCorregido)
-    <div class="rounded-xl border border-green-300 bg-green-50 p-5">
-        <div class="flex flex-wrap items-center justify-between gap-4">
+    <div class="grid gap-4 {{ $eps === 'proteger' && $archivoTxtCorregido ? 'md:grid-cols-2' : '' }}">
 
-            <div>
-                <p class="font-semibold text-green-800">
-                    Excel corregido disponible
-                </p>
+        {{-- Excel corregido --}}
+        <div class="rounded-xl border border-green-300 bg-green-50 p-5">
+            <div class="flex h-full flex-col justify-between gap-4">
 
-                <p class="mt-1 text-sm text-green-700">
-                    El archivo fue generado y ya puede descargarse.
-                </p>
+                <div>
+                    <p class="font-semibold text-green-800">
+                        Excel corregido disponible
+                    </p>
+
+                    <p class="mt-1 text-sm text-green-700">
+                        Conserva la estructura de trabajo y la auditoría
+                        de las correcciones realizadas.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    wire:click="descargarCorregido"
+                    wire:loading.attr="disabled"
+                    wire:target="descargarCorregido"
+                    class="inline-flex items-center justify-center rounded-lg
+                           bg-green-600 px-5 py-2.5 text-sm font-semibold text-white
+                           hover:bg-green-700 disabled:opacity-60"
+                >
+                    <span
+                        wire:loading.remove
+                        wire:target="descargarCorregido"
+                    >
+                        Descargar Excel corregido
+                    </span>
+
+                    <span
+                        wire:loading
+                        wire:target="descargarCorregido"
+                    >
+                        Preparando descarga...
+                    </span>
+                </button>
+
             </div>
-
-            <button
-                type="button"
-                wire:click="descargarCorregido"
-                wire:loading.attr="disabled"
-                wire:target="descargarCorregido"
-                style="
-                    background-color: #16a34a;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 20px;
-                    font-size: 14px;
-                    font-weight: 600;
-                    cursor: pointer;
-                "
-            >
-                <span
-                    wire:loading.remove
-                    wire:target="descargarCorregido"
-                >
-                    Descargar Excel corregido
-                </span>
-
-                <span
-                    wire:loading
-                    wire:target="descargarCorregido"
-                >
-                    Preparando descarga...
-                </span>
-            </button>
-
         </div>
+
+        {{-- TXT final de Proteger --}}
+        @if ($eps === 'proteger' && $archivoTxtCorregido)
+            <div class="rounded-xl border border-blue-300 bg-blue-50 p-5">
+                <div class="flex h-full flex-col justify-between gap-4">
+
+                    <div>
+                        <p class="font-semibold text-blue-800">
+                            TXT de Proteger listo
+                        </p>
+
+                        <p class="mt-1 text-sm text-blue-700">
+                            {{ $nombreTxtCorregido }}
+                        </p>
+
+                        <p class="mt-2 text-xs leading-5 text-blue-700">
+                            119 campos por registro, separados por
+                            <strong>|</strong>, sin encabezado y en UTF-8.
+                            @if (($resumen['pendientes'] ?? 0) > 0)
+                                Quedan {{ $resumen['pendientes'] }} correcciones
+                                pendientes de revisión manual.
+                            @else
+                                No quedaron correcciones manuales pendientes.
+                            @endif
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        wire:click="descargarTxtCorregido"
+                        wire:loading.attr="disabled"
+                        wire:target="descargarTxtCorregido"
+                        class="inline-flex items-center justify-center rounded-lg
+                               bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white
+                               hover:bg-blue-700 disabled:opacity-60"
+                    >
+                        <span
+                            wire:loading.remove
+                            wire:target="descargarTxtCorregido"
+                        >
+                            Descargar TXT para Proteger
+                        </span>
+
+                        <span
+                            wire:loading
+                            wire:target="descargarTxtCorregido"
+                        >
+                            Preparando TXT...
+                        </span>
+                    </button>
+
+                </div>
+            </div>
+        @endif
+
     </div>
 @endif
 

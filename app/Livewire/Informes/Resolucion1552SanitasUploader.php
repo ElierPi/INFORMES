@@ -52,13 +52,12 @@ final class Resolucion1552SanitasUploader extends Component
             $this->validateOnly('periodo');
 
             $folder = 'private/uploads/resolucion1552-sanitas/'.Str::uuid();
-            $path = $this->stabilizeTemporaryUpload(
-                uploadedFile: $this->archivo,
-                allowedExtensions: ['xlsx', 'xls'],
+            $path = $this->stabilizeUpload(
+                upload: $this->archivo,
+                extensions: ['xlsx', 'xls'],
                 maxBytes: 30 * 1024 * 1024,
                 folder: $folder,
-                baseName: 'entrada',
-                label: 'archivo Excel'
+                baseName: 'entrada'
             );
             $result = $exporter->export($path, $this->periodo);
             $validation = $result['validation'] ?? [];
@@ -99,7 +98,7 @@ final class Resolucion1552SanitasUploader extends Component
 
     public function descargarZip()
     {
-        if (! $this->generado || ! is_string($this->zipPath) || ! is_file($this->zipPath)) {
+        if (! is_string($this->zipPath) || $this->zipPath === '' || ! is_file($this->zipPath)) {
             $this->error = 'El ZIP ya no está disponible. Genera nuevamente el informe.';
             return null;
         }
@@ -109,7 +108,7 @@ final class Resolucion1552SanitasUploader extends Component
 
     public function descargarTxt()
     {
-        if (! $this->generado || ! is_string($this->txtPath) || ! is_file($this->txtPath)) {
+        if (! is_string($this->txtPath) || $this->txtPath === '' || ! is_file($this->txtPath)) {
             $this->error = 'El TXT ya no está disponible. Genera nuevamente el informe.';
             return null;
         }

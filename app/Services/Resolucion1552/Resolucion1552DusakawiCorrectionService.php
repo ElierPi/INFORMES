@@ -34,6 +34,15 @@ final class Resolucion1552DusakawiCorrectionService
             throw new RuntimeException('La primera línea no es una línea de control válida de seis campos.');
         }
 
+        $periodStart = trim((string) ($control[3] ?? ''));
+        $periodEnd = trim((string) ($control[4] ?? ''));
+
+        if (! $this->isIsoDate($periodStart) || ! $this->isIsoDate($periodEnd)) {
+            throw new RuntimeException(
+                'La línea de control no contiene un período válido en formato AAAA-MM-DD.'
+            );
+        }
+
         $remove = [];
         $updates = [];
         $manual = [];
@@ -144,6 +153,102 @@ final class Resolucion1552DusakawiCorrectionService
                 continue;
             }
 
+            $isDateOutOfRange = str_contains(
+                $normalizedMessage,
+                'fecha cita no esta en el rango de las fechas'
+            );
+
+            if ($isDateOutOfRange) {
+                if (count($fields) !== 11 || trim((string) ($fields[0] ?? '')) !== '2') {
+                    $manual[] = [
+                        'line' => $lineNumber,
+                        'message' => $error['message'],
+                        'reason' => 'La línea no tiene los once campos de detalle esperados.',
+                    ];
+                    continue;
+                }
+
+                $appointmentDates = [
+                    trim((string) ($fields[6] ?? '')),
+                    trim((string) ($fields[7] ?? '')),
+                    trim((string) ($fields[8] ?? '')),
+                ];
+
+                $outsidePeriod = false;
+
+                foreach ($appointmentDates as $date) {
+                    if (
+                        $this->isIsoDate($date)
+                        && ($date < $periodStart || $date > $periodEnd)
+                    ) {
+                        $outsidePeriod = true;
+                        break;
+                    }
+                }
+
+                if (! $outsidePeriod) {
+                    $manual[] = [
+                        'line' => $lineNumber,
+                        'message' => $error['message'],
+                        'reason' =>
+                            'DUSAKAWI reportó una fecha fuera del período, pero las fechas del registro no permiten confirmar esa condición automáticamente.',
+                    ];
+                    continue;
+                }
+
+                $remove[$lineNumber] = true;
+                $audit[] = [
+                    'line' => $lineNumber,
+                    'record_type' => $fields[0] ?? '',
+                    'document_type' => $fields[2] ?? '',
+                    'document_number' => $fields[3] ?? '',
+                    'cups' => $fields[10] ?? '',
+                    'appointment_date' => $fields[6] ?? '',
+                    'internal_duplicate' => false,
+                    'first_occurrence' => null,
+                    'previous_value' => implode(' / ', $appointmentDates),
+                    'new_value' => null,
+                    'action' =>
+                        "Línea excluida porque la fecha de cita está fuera del período {$periodStart} a {$periodEnd}",
+                    'message' => $error['message'],
+                ];
+                continue;
+            }
+
+            $isInvalidCups = str_contains(
+                $normalizedMessage,
+                'el valor del campo cups, no existe en la base de datos'
+            );
+
+            if ($isInvalidCups) {
+                if (count($fields) !== 11 || trim((string) ($fields[0] ?? '')) !== '2') {
+                    $manual[] = [
+                        'line' => $lineNumber,
+                        'message' => $error['message'],
+                        'reason' => 'La línea no tiene los once campos de detalle esperados.',
+                    ];
+                    continue;
+                }
+
+                $remove[$lineNumber] = true;
+                $audit[] = [
+                    'line' => $lineNumber,
+                    'record_type' => $fields[0] ?? '',
+                    'document_type' => $fields[2] ?? '',
+                    'document_number' => $fields[3] ?? '',
+                    'cups' => $fields[10] ?? '',
+                    'appointment_date' => $fields[6] ?? '',
+                    'internal_duplicate' => false,
+                    'first_occurrence' => null,
+                    'previous_value' => $fields[10] ?? '',
+                    'new_value' => null,
+                    'action' =>
+                        'Línea excluida porque DUSAKAWI reportó que el CUPS no existe en su base de datos',
+                    'message' => $error['message'],
+                ];
+                continue;
+            }
+
             $manual[] = [
                 'line' => $lineNumber,
                 'message' => $error['message'],
@@ -213,6 +318,20 @@ final class Resolucion1552DusakawiCorrectionService
         }
 
         return $candidate;
+    }
+
+    private function isIsoDate(string $value): bool
+    {
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return false;
+        }
+
+        [$year, $month, $day] = array_map(
+            'intval',
+            explode('-', $value)
+        );
+
+        return checkdate($month, $day, $year);
     }
 
     private function decodeFile(string $path): string

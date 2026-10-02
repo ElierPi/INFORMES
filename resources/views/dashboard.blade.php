@@ -3,6 +3,7 @@
         $modules = [
             [
                 'name' => 'Resolución 202',
+                'group' => '202',
                 'description' => 'Carga, analiza y corrige los archivos de la Resolución 202 antes de su entrega.',
                 'route' => 'informes.resolucion-202',
                 'status' => 'Activo',
@@ -12,6 +13,7 @@
             ],
             [
     'name' => 'Resolución 0256',
+                'group' => '0256',
     'description' => 'Validación del reporte de indicadores de calidad en salud.',
     'route' => 'informes.resolucion-0256',
     'status' => 'Activo',
@@ -22,6 +24,7 @@
 
 [
     'name' => 'Resolución 1552',
+                'group' => '1552',
     'description' => 'Carga un Excel, valida la información y genera el TXT y ZIP oficial de la Resolución 1552.',
     'route' => 'informes.resolucion-1552',
     'status' => 'Activo',
@@ -32,6 +35,7 @@
 
 [
     'name' => '1552 · Familiar de Colombia',
+                'group' => '1552',
     'description' => 'Convierte el formato QAC-FO26 en TXT ANSI de 14 campos separado por punto y coma.',
     'route' => 'informes.resolucion-1552.familiar-colombia',
     'status' => 'Activo',
@@ -41,6 +45,7 @@
 ],
 [
     'name' => '1604 · Familiar Colombia · CIDSMA',
+                'group' => '1604',
     'description' => 'Valida gestión farmacéutica y genera TXT ANSI de 39 campos para el portal SIE de Familiar de Colombia.',
     'route' => 'informes.resolucion-1604.familiar-colombia',
     'status' => 'Activo',
@@ -50,6 +55,7 @@
 ],
 [
     'name' => '1552 · Proteger',
+                'group' => '1552',
     'description' => 'Convierte el Excel institucional en TXT UTF-8 de 14 campos y genera el ZIP oficial.',
     'route' => 'informes.resolucion-1552.proteger',
     'status' => 'Activo',
@@ -59,6 +65,7 @@
 ],
 [
     'name' => '1552 · Sanitas SIGIRES',
+                'group' => '1552',
     'description' => 'Valida el Excel de Sanitas y genera TXT ANSI tabulado dentro de ZIP.',
     'route' => 'informes.resolucion-1552.sanitas',
     'status' => 'Activo',
@@ -68,6 +75,7 @@
 ],
             [
                 'name' => 'Gestantes SIGIRES',
+                'group' => 'gestantes',
                 'description' => 'Accede al módulo de gestantes para corregir, validar y generar archivos oficiales.',
                 'route' => 'informes.gestantes',
                 'status' => 'Activo',
@@ -76,16 +84,28 @@
                 'icon' => 'heart',
             ],
             [
-                'name' => 'RIPS',
-                'description' => 'Validación, corrección y generación de archivos RIPS.',
-                'route' => null,
-                'status' => 'Próximamente',
-                'enabled' => false,
+                'name' => 'Gestante mensual · SIGIRES',
+                'group' => 'gestantes',
+                'description' => 'Valida la estructura mensual de 148 campos y genera el XLSX comprimido en ZIP para SIGIRES.',
+                'route' => 'informes.gestante-mensual',
+                'status' => 'Activo',
+                'enabled' => true,
+                'accent' => 'rose',
+                'icon' => 'heart',
+            ],
+            [
+                'name' => 'RIPS · Familiar Colombia',
+                'group' => 'rips',
+                'description' => 'Genera los RIPS mensuales US, AC, AP y AM desde la base anual, conservando la plantilla oficial.',
+                'route' => 'informes.rips',
+                'status' => 'Activo',
+                'enabled' => true,
                 'accent' => 'violet',
                 'icon' => 'database',
             ],
             [
                 'name' => 'Resolución 4505',
+                'group' => 'proximamente',
                 'description' => 'Validación y control de calidad de reportes de promoción y prevención.',
                 'route' => null,
                 'status' => 'Próximamente',
@@ -95,6 +115,7 @@
             ],
             [
                 'name' => 'PAIWEB',
+                'group' => 'proximamente',
                 'description' => 'Procesamiento y validación de información de vacunación.',
                 'route' => null,
                 'status' => 'Próximamente',
@@ -104,6 +125,7 @@
             ],
             [
                 'name' => 'Cuenta de Alto Costo · SIGIRES',
+                'group' => 'cronicos',
                 'description' => 'Cruza la base regional con historias clínicas y prepara la estructura ERC PRECURSORAS para SIGIRES.',
                 'route' => 'informes.sigires-cronicos',
                 'status' => 'Activo',
@@ -113,12 +135,60 @@
             ],
             [
                 'name' => 'Crónicos · DUSAKAWI',
+                'group' => 'cronicos',
                 'description' => 'Corrige el Excel de crónicos a partir del archivo de errores devuelto por DUSAKAWI.',
                 'route' => 'informes.cronicos-dusakawi',
                 'status' => 'Activo',
                 'enabled' => true,
                 'accent' => 'blue',
                 'icon' => 'clipboard',
+            ],
+            [
+                'name' => '1604 · DUSAKAWI',
+                'group' => '1604',
+                'description' => 'Prepara el TXT de medicamentos para cargue en Aryuwi y permite corregir los errores reportados por la EPS.',
+                'route' => 'informes.resolucion-1604.dusakawi',
+                'status' => 'Activo',
+                'enabled' => true,
+                'accent' => 'sky',
+                'icon' => 'document',
+            ],
+        ];
+
+        $groupOrder = ['202', '0256', '1604', '1552', 'cronicos', 'gestantes', 'rips', 'proximamente'];
+
+        $groupLabels = [
+            '202' => [
+                'title' => 'Resolución 202',
+                'description' => 'Preparación, validación y corrección de reportes de la Resolución 202.',
+            ],
+            '0256' => [
+                'title' => 'Resolución 0256',
+                'description' => 'Validación de indicadores de calidad en salud.',
+            ],
+            '1604' => [
+                'title' => 'Resolución 1604',
+                'description' => 'Módulos de medicamentos y gestión farmacéutica por EPS.',
+            ],
+            '1552' => [
+                'title' => 'Resolución 1552',
+                'description' => 'Preparación, validación y corrección de archivos para las distintas EPS.',
+            ],
+            'cronicos' => [
+                'title' => 'Crónicos',
+                'description' => 'Procesamiento de reportes de pacientes crónicos y Cuenta de Alto Costo.',
+            ],
+            'gestantes' => [
+                'title' => 'Gestantes',
+                'description' => 'Procesamiento y validación de reportes de gestantes.',
+            ],
+            'rips' => [
+                'title' => 'RIPS',
+                'description' => 'Generación mensual de archivos RIPS a partir de las bases consolidadas.',
+            ],
+            'proximamente' => [
+                'title' => 'Próximamente',
+                'description' => 'Módulos que se integrarán en las siguientes etapas.',
             ],
         ];
 
@@ -205,58 +275,72 @@
 
         <section>
             <div class="mb-5">
-                <h2 class="text-xl font-bold text-neutral-900 dark:text-white">Módulos</h2>
+                <h2 class="text-xl font-bold text-neutral-900 dark:text-white">Módulos por grupo</h2>
                 <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                    Ingresa al módulo y selecciona la herramienta que necesites.
+                    Selecciona el grupo y abre directamente la herramienta que necesites.
                 </p>
             </div>
 
             <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                @foreach ($modules as $module)
-                    @php $colors = $accentClasses[$module['accent']] ?? $accentClasses['blue']; @endphp
+                @foreach ($groupOrder as $groupKey)
+                    @php
+                        $groupModules = collect($modules)->where('group', $groupKey);
+                        $groupInfo = $groupLabels[$groupKey];
+                        $enabledCount = $groupModules->where('enabled', true)->count();
+                    @endphp
 
-                    <article class="flex min-h-72 flex-col rounded-2xl border bg-white p-6 shadow-sm transition duration-200 dark:bg-neutral-900 {{ $colors['border'] }} {{ $module['enabled'] ? 'hover:-translate-y-1 hover:shadow-lg' : 'opacity-80' }}">
-                        <div class="flex items-start justify-between gap-4">
-                            <div class="flex size-12 items-center justify-center rounded-2xl {{ $colors['icon'] }}">
-                                @if ($module['icon'] === 'heart')
+                    @if ($groupModules->isNotEmpty())
+                        <article class="flex min-h-80 flex-col rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex size-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
                                     <svg class="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 20.25S4.5 15.75 4.5 9.75A4.5 4.5 0 0 1 12 6.4a4.5 4.5 0 0 1 7.5 3.35c0 6-7.5 10.5-7.5 10.5Z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4.75 5.75A2 2 0 0 1 6.75 3.75h10.5a2 2 0 0 1 2 2v12.5a2 2 0 0 1-2 2H6.75a2 2 0 0 1-2-2V5.75Z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 8h8M8 12h8M8 16h5"/>
                                     </svg>
-                                @else
-                                    <svg class="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7.5 3.75h6l3 3V20.25H7.5V3.75Z"/>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.5 3.75v3h3M9.75 11.25h4.5M9.75 14.25h4.5"/>
-                                    </svg>
-                                @endif
+                                </div>
+
+                                <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                    {{ $enabledCount }} {{ $enabledCount === 1 ? 'activo' : 'activos' }}
+                                </span>
                             </div>
 
-                            <span class="{{ $module['enabled'] ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300' }} rounded-full px-2.5 py-1 text-xs font-semibold">
-                                {{ $module['status'] }}
-                            </span>
-                        </div>
+                            <div class="mt-5">
+                                <h3 class="text-xl font-bold text-neutral-900 dark:text-white">
+                                    {{ $groupInfo['title'] }}
+                                </h3>
+                                <p class="mt-2 text-sm leading-6 text-neutral-600 dark:text-neutral-400">
+                                    {{ $groupInfo['description'] }}
+                                </p>
+                            </div>
 
-                        <div class="mt-5 flex-1">
-                            <h3 class="text-lg font-bold text-neutral-900 dark:text-white">{{ $module['name'] }}</h3>
-                            <p class="mt-2 text-sm leading-6 text-neutral-600 dark:text-neutral-400">{{ $module['description'] }}</p>
-                        </div>
+                            <div class="mt-5 flex-1 space-y-2">
+                                @foreach ($groupModules as $module)
+                                    @php $colors = $accentClasses[$module['accent']] ?? $accentClasses['blue']; @endphp
 
-                        <div class="mt-6">
-                            @if ($module['enabled'] && $module['route'])
-                                <a href="{{ route($module['route']) }}" wire:navigate class="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 {{ $colors['button'] }}">
-                                    Abrir módulo
-                                    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7"/>
-                                    </svg>
-                                </a>
-                            @else
-                                <button disabled class="inline-flex w-full cursor-not-allowed items-center justify-center rounded-xl bg-neutral-100 px-4 py-2.5 text-sm font-semibold text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500">
-                                    Disponible próximamente
-                                </button>
-                            @endif
-                        </div>
-                    </article>
+                                    @if ($module['enabled'] && $module['route'])
+                                        <a
+                                            href="{{ route($module['route']) }}"
+                                            wire:navigate
+                                            class="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800/70 dark:text-neutral-100 dark:hover:bg-neutral-800"
+                                        >
+                                            <span>{{ $module['name'] }}</span>
+                                            <svg class="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7"/>
+                                            </svg>
+                                        </a>
+                                    @else
+                                        <div class="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-semibold text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800/40 dark:text-neutral-500">
+                                            <span>{{ $module['name'] }}</span>
+                                            <span class="text-[11px] uppercase tracking-wide">Próximamente</span>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </article>
+                    @endif
                 @endforeach
             </div>
         </section>
+
     </div>
 </x-layouts.app>

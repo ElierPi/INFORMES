@@ -2,8 +2,8 @@
     @php
         $tools = [
             [
-                'name' => 'Validar Excel',
-                'description' => 'Carga el archivo de gestantes, valida su estructura y contenido, muestra los errores encontrados y genera TXT y ZIP cuando el archivo es válido.',
+                'name' => 'Gestante semanal',
+                'description' => 'Carga el Excel semanal, aplica correcciones seguras y siempre genera el Excel corregido y el TXT/ZIP para probar en SIGIRES; los errores devueltos se atienden en el corrector.',
                 'route' => 'informes.gestantes.validar-excel',
                 'status' => 'Activo',
                 'enabled' => true,
@@ -16,14 +16,6 @@
                 'status' => 'Activo',
                 'enabled' => true,
                 'icon' => 'correction',
-            ],
-            [
-                'name' => 'Generar TXT y ZIP',
-                'description' => 'Genera directamente los archivos de entrega a partir de un Excel previamente validado.',
-                'route' => null,
-                'status' => 'Próximamente',
-                'enabled' => false,
-                'icon' => 'generate',
             ],
             [
                 'name' => 'Historial de procesos',
@@ -68,7 +60,7 @@
                         </h1>
 
                         <p class="mt-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300 sm:text-base">
-                            Selecciona la herramienta que necesites para validar, corregir y generar los archivos del reporte de gestantes.
+                            Selecciona la herramienta que necesites para el reporte semanal o para corregir devoluciones de SIGIRES.
                         </p>
                     </div>
                 </div>
@@ -79,7 +71,7 @@
             <div class="mb-5">
                 <h2 class="text-xl font-bold text-neutral-900 dark:text-white">Herramientas del módulo</h2>
                 <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                    La validación del Excel y la corrección SIGIRES están disponibles.
+                    Gestante semanal y la corrección SIGIRES están disponibles.
                 </p>
             </div>
 

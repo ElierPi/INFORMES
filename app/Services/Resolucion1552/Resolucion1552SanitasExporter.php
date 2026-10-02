@@ -31,9 +31,40 @@ final class Resolucion1552SanitasExporter
         $specialties = $this->specialtyCodes();
         $seen = [];
         $duplicateCount = 0;
+        $excludedOutOfPeriod = 0;
+        $outputRecords = [];
 
         foreach ($records as $index => $record) {
             $row = (int) ($sourceRows[$index] ?? $index + 2);
+
+            /*
+             * Regla automática Sanitas 1552:
+             * si la fecha en que el usuario solicita la cita no pertenece
+             * al período reportado, el registro no debe formar parte de ese
+             * informe. Se excluye sin inventar ni modificar la fecha.
+             */
+            $requestDate = DateTimeImmutable::createFromFormat('!d/m/Y', (string) ($record[6] ?? ''));
+            if (
+                $requestDate instanceof DateTimeImmutable
+                && $requestDate->format('d/m/Y') === (string) ($record[6] ?? '')
+                && ($requestDate < $periodStart || $requestDate > $periodEnd)
+            ) {
+                $excludedOutOfPeriod++;
+                $warnings[] = $this->issue(
+                    $row,
+                    'Fecha de solicitud',
+                    sprintf(
+                        'Registro excluido automáticamente: la fecha %s no pertenece al período reportado %s a %s.',
+                        (string) $record[6],
+                        $periodStart->format('d/m/Y'),
+                        $periodEnd->format('d/m/Y')
+                    ),
+                    (string) $record[6],
+                    'warning'
+                );
+                continue;
+            }
+
             $beforePhone = $record[4];
 
             if ($beforePhone === '9999999999') {
@@ -50,17 +81,24 @@ final class Resolucion1552SanitasExporter
             } else {
                 $seen[$signature] = $row;
             }
+
+            $outputRecords[] = $record;
         }
 
-        $validRows = count($records) - count(array_unique(array_map(static fn (array $error): int => (int) $error['source_row'], $errors)));
+        $invalidRows = count(array_unique(array_map(
+            static fn (array $error): int => (int) $error['source_row'],
+            $errors
+        )));
+        $validRows = count($outputRecords) - $invalidRows;
         $statistics = [
             'records_count' => count($records),
             'valid_records_count' => max(0, $validRows),
-            'invalid_records_count' => count($records) - max(0, $validRows),
+            'invalid_records_count' => $invalidRows,
             'errors_count' => count($errors),
             'warnings_count' => count($warnings),
             'duplicate_count' => $duplicateCount,
             'phone_corrections_count' => $phoneCorrections,
+            'excluded_out_of_period_count' => $excludedOutOfPeriod,
         ];
 
         if ($errors !== []) {
@@ -70,7 +108,11 @@ final class Resolucion1552SanitasExporter
             ];
         }
 
-        $providerCodes = array_values(array_unique(array_column($records, 0)));
+        if ($outputRecords === []) {
+            throw new RuntimeException('No quedaron registros dentro del período reportado para generar el informe.');
+        }
+
+        $providerCodes = array_values(array_unique(array_column($outputRecords, 0)));
         if (count($providerCodes) !== 1 || ! preg_match('/^\d{12}$/', $providerCodes[0])) {
             throw new RuntimeException('El archivo debe contener un único código de habilitación válido de 12 dígitos.');
         }
@@ -87,7 +129,7 @@ final class Resolucion1552SanitasExporter
         $txtPath = $folder . DIRECTORY_SEPARATOR . $txtName;
         $zipPath = $folder . DIRECTORY_SEPARATOR . $zipName;
 
-        $rows = [Resolucion1552SanitasExcelReader::HEADERS, ...$records];
+        $rows = [Resolucion1552SanitasExcelReader::HEADERS, ...$outputRecords];
         $utf8 = implode("\r\n", array_map(static fn (array $row): string => implode("\t", $row), $rows));
         $ansi = iconv('UTF-8', 'Windows-1252//TRANSLIT', $utf8);
         if ($ansi === false || file_put_contents($txtPath, $ansi) === false) {

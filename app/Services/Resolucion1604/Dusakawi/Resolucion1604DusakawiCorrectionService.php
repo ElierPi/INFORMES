@@ -2,6 +2,7 @@
 
 namespace App\Services\Resolucion1604\Dusakawi;
 
+use DateTimeImmutable;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -59,6 +60,105 @@ final class Resolucion1604DusakawiCorrectionService
             $fields =& $details[$lineNumber];
             $document = ($fields[4] ?? '').'_'.($fields[5] ?? '');
             $normalized = Str::of($message)->ascii()->lower()->toString();
+
+            /*
+             * Errores globales observados en el cargue de agosto 2026.
+             *
+             * Estos errores afectan el formato completo del archivo y no
+             * deben provocar la eliminación del registro.
+             */
+
+            // NIT confirmado por el usuario: 900144397.
+            if (str_contains($normalized, 'campo nit, no existe en la base de datos')) {
+                $old = trim((string) ($fields[0] ?? ''));
+                $new = '900144397';
+
+                if ($old !== $new) {
+                    $fields[0] = $new;
+                    $updatedRows[$lineNumber] = true;
+                    $audit[] = $this->change(
+                        $lineNumber,
+                        $document,
+                        'NIT',
+                        $old,
+                        $new,
+                        'NIT del prestador normalizado sin dígito de verificación',
+                        $message
+                    );
+                }
+            }
+
+            /*
+             * Aryuwi exige AAAA-MM-DD para los campos 18, 19 y 20.
+             * El TXT previo conservaba DD/MM/AAAA.
+             */
+            $dateErrorMap = [
+                'campo fecha_solicitud, no cumple con el formato' => 17,
+                'campo fecha_primera_entrega, no cumple con el formato' => 18,
+                'campo fecha_entrega_pendiente, no cumple con el formato' => 19,
+            ];
+
+            foreach ($dateErrorMap as $errorText => $fieldIndex) {
+                if (! str_contains($normalized, $errorText)) {
+                    continue;
+                }
+
+                $old = trim((string) ($fields[$fieldIndex] ?? ''));
+                $new = $this->normalizeDate($old);
+
+                if ($new !== null && $new !== $old) {
+                    $fields[$fieldIndex] = $new;
+                    $updatedRows[$lineNumber] = true;
+                    $audit[] = $this->change(
+                        $lineNumber,
+                        $document,
+                        $this->dateFieldName($fieldIndex),
+                        $old,
+                        $new,
+                        'Fecha normalizada al formato AAAA-MM-DD',
+                        $message
+                    );
+                } elseif ($new === null) {
+                    $manual[] = $this->manual(
+                        $lineNumber,
+                        $document,
+                        $this->dateFieldName($fieldIndex),
+                        'No fue posible convertir la fecha al formato AAAA-MM-DD sin inventar información.',
+                        $message
+                    );
+                }
+            }
+
+            /*
+             * MODALIDAD_ENTREGA admite 1..5.
+             *
+             * Para los registros actuales:
+             * - autorización domiciliaria = 0
+             * - cantidad pendiente = 0
+             *
+             * corresponde 2 = Intramural.
+             *
+             * Si en futuros cargues existe autorización domiciliaria,
+             * se decide entre domiciliario y domiciliario pendiente.
+             */
+            if (str_contains($normalized, 'campo modalidad_entrega, no puede estar vacio')) {
+                $old = trim((string) ($fields[24] ?? ''));
+                $new = $this->inferDeliveryModality($fields);
+
+                if ($new !== $old) {
+                    $fields[24] = $new;
+                    $updatedRows[$lineNumber] = true;
+                    $audit[] = $this->change(
+                        $lineNumber,
+                        $document,
+                        'MODALIDAD_ENTREGA',
+                        $old,
+                        $new,
+                        'Modalidad normalizada según autorización domiciliaria y cantidad pendiente',
+                        $message
+                    );
+                }
+            }
 
             // Reglas confirmadas por los cargues reales:
             // CUM inexistente/vacío, afiliado inexistente o diagnóstico inexistente -> excluir registro.
@@ -211,6 +311,128 @@ final class Resolucion1604DusakawiCorrectionService
             throw new RuntimeException('No se encontraron errores con el formato "Error linea N --> ...".');
         }
         return $result;
+    }
+
+    private function normalizeDate(string $value): ?string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        // Ya viene correcta.
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        $errors = DateTimeImmutable::getLastErrors();
+        if (
+            $date instanceof DateTimeImmutable
+            && (
+                $errors === false
+                || (
+                    ($errors['warning_count'] ?? 0) === 0
+                    && ($errors['error_count'] ?? 0) === 0
+                )
+            )
+        ) {
+            return $date->format('Y-m-d');
+        }
+
+        // Formatos observados en los TXT de DUSAKAWI.
+        foreach (
+            [
+                '!d/m/Y',
+                '!d-m-Y',
+                '!d/m/y',
+            ] as $format
+        ) {
+            $date = DateTimeImmutable::createFromFormat(
+                $format,
+                $value
+            );
+
+            $errors = DateTimeImmutable::getLastErrors();
+
+            if (
+                $date instanceof DateTimeImmutable
+                && (
+                    $errors === false
+                    || (
+                        ($errors['warning_count'] ?? 0) === 0
+                        && ($errors['error_count'] ?? 0) === 0
+                    )
+                )
+            ) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        // Si trae hora, conservar únicamente la fecha.
+        if (
+            preg_match(
+                '/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})\b/',
+                $value,
+                $match
+            )
+        ) {
+            $candidate = sprintf(
+                '%04d-%02d-%02d',
+                (int) $match[3],
+                (int) $match[2],
+                (int) $match[1]
+            );
+
+            $date = DateTimeImmutable::createFromFormat(
+                '!Y-m-d',
+                $candidate
+            );
+
+            $errors = DateTimeImmutable::getLastErrors();
+
+            if (
+                $date instanceof DateTimeImmutable
+                && (
+                    $errors === false
+                    || (
+                        ($errors['warning_count'] ?? 0) === 0
+                        && ($errors['error_count'] ?? 0) === 0
+                    )
+                )
+            ) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array<int, string> $fields */
+    private function inferDeliveryModality(array $fields): string
+    {
+        $pending = is_numeric($fields[16] ?? null)
+            ? (int) $fields[16]
+            : 0;
+
+        $homeAuthorization = trim(
+            (string) ($fields[20] ?? '0')
+        );
+
+        if ($homeAuthorization === '1') {
+            return $pending > 0
+                ? '3' // Domiciliario pendiente
+                : '1'; // Domiciliario
+        }
+
+        return '2'; // Intramural
+    }
+
+    private function dateFieldName(int $index): string
+    {
+        return match ($index) {
+            17 => 'FECHA_SOLICITUD',
+            18 => 'FECHA_PRIMERA_ENTREGA',
+            19 => 'FECHA_ENTREGA_PENDIENTE',
+            default => 'FECHA',
+        };
     }
 
     private function firstDiagnosis(string $value): string

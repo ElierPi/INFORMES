@@ -82,13 +82,32 @@
         </section>
     @endif
 
-    @if ($generado)
+    @if ($generado || $txtPath || $zipPath)
         <section class="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm dark:border-emerald-900 dark:bg-neutral-900">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div><h2 class="font-bold text-neutral-900 dark:text-white">Archivos listos</h2><p class="mt-1 text-sm text-neutral-500">{{ $zipName }}</p><p class="mt-1 text-xs text-neutral-400">El ZIP contiene únicamente {{ $txtName }}.</p></div>
                 <div class="flex flex-wrap gap-3">
-                    <button type="button" wire:click="descargarTxt" class="rounded-xl border border-emerald-600 px-5 py-3 text-sm font-semibold text-emerald-700">Descargar TXT</button>
-                    <button type="button" wire:click="descargarZip" class="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700">Descargar ZIP</button>
+                    @if ($txtPath)
+                        <button type="button"
+                            wire:click="descargarTxt"
+                            wire:loading.attr="disabled"
+                            wire:target="descargarTxt"
+                            class="rounded-xl border border-emerald-600 px-5 py-3 text-sm font-semibold text-emerald-700 disabled:opacity-50">
+                            <span wire:loading.remove wire:target="descargarTxt">Descargar TXT</span>
+                            <span wire:loading wire:target="descargarTxt">Preparando TXT...</span>
+                        </button>
+                    @endif
+
+                    @if ($zipPath)
+                        <button type="button"
+                            wire:click="descargarZip"
+                            wire:loading.attr="disabled"
+                            wire:target="descargarZip"
+                            class="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                            <span wire:loading.remove wire:target="descargarZip">Descargar ZIP</span>
+                            <span wire:loading wire:target="descargarZip">Preparando ZIP...</span>
+                        </button>
+                    @endif
                 </div>
             </div>
         </section>

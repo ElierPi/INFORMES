@@ -280,9 +280,13 @@ class GestantesLogsParser
 
         $automaticPatterns = [
             'fecha de suministro de anticonceptivo',
+            'suministro de metodo anticonceptivo',
             'fecha de terminacion de la gestacion',
             'tipo de terminacion',
             'direccion de residencia',
+            'fecha probable de parto',
+            'el pais 172 no existe',
+            'indice de pulsatilidad',
             'total de registros',
             'consecutivo',
         ];
@@ -326,6 +330,26 @@ class GestantesLogsParser
                 $text,
                 'total de registros'
             ) => 'ControlTotalsRule',
+
+            str_contains(
+                $text,
+                'fecha probable de parto'
+            ) => 'FechaProbablePartoRule',
+
+            str_contains(
+                $text,
+                'el pais 172 no existe'
+            ) => 'PaisColombiaRule',
+
+            str_contains(
+                $text,
+                'suministro de metodo anticonceptivo'
+            ) => 'SuministroAnticonceptivoRule',
+
+            str_contains(
+                $text,
+                'indice de pulsatilidad'
+            ) => 'IndicePulsatilidadRule',
 
             str_contains(
                 $text,

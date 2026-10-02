@@ -2,12 +2,6 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Hojas por tipo de registro
-    |--------------------------------------------------------------------------
-    */
-
     'sheets' => [
         1 => '1 - Control',
         2 => '2 - ID gestantes',
@@ -17,54 +11,60 @@ return [
     ],
 
     /*
-    |--------------------------------------------------------------------------
-    | Variables reportadas por SIGIRES
-    |--------------------------------------------------------------------------
-    |
-    | La posición informada por SIGIRES se traduce primero a una clave lógica.
-    | Después se busca la columna real mediante el encabezado del Excel.
-    |
-    */
-
+     * Variables oficiales del anexo técnico (numeración iniciando en 0).
+     * El corrector ZIP usa además la descripción del LOG para evitar
+     * desplazamientos de columna.
+     */
     'fields' => [
-
         2 => [
-            18 => [
+            2 => [
+                'key' => 'pais_nacionalidad',
+                'header' => 'País de la nacionalidad',
+                'type' => 'number',
+            ],
+            16 => [
+                'key' => 'fecha_probable_parto',
+                'header' => 'Fecha probable de parto',
+                'type' => 'date',
+            ],
+            17 => [
                 'key' => 'direccion_residencia',
-                'header' => 'Dirección de la residencia de la usuaria',
+                'header' => 'Dirección de residencia de la gestante',
                 'type' => 'text',
             ],
         ],
 
         3 => [
-            14 => [
+            13 => [
                 'key' => 'fecha_anticonceptivo',
                 'header' => 'Fecha de suministro de anticonceptivo post evento obstétrico',
                 'type' => 'date',
             ],
-
-            15 => [
+            14 => [
                 'key' => 'suministro_anticonceptivo',
-                'header' => 'Suministro de anticonceptivo post evento obstétrico',
+                'header' => 'Suministro de método anticonceptivo post evento obstétrico',
                 'type' => 'number',
             ],
-
-            16 => [
+            15 => [
                 'key' => 'fecha_salida_evento_obstetrico',
                 'header' => 'Fecha de salida de aborto o atención del parto o cesárea',
                 'type' => 'date',
             ],
-
-            17 => [
+            16 => [
                 'key' => 'fecha_terminacion_gestacion',
                 'header' => 'Fecha de terminación de la gestación',
                 'type' => 'date',
             ],
-18 => [
-    'key' => 'tipo_terminacion_gestacion',
-    'header' => 'Tipo de terminación de la gestación',
-    'type' => 'number',
-],
+            17 => [
+                'key' => 'tipo_terminacion_gestacion',
+                'header' => 'Tipo de terminación de la gestación',
+                'type' => 'number',
+            ],
+            22 => [
+                'key' => 'indice_pulsatilidad',
+                'header' => 'Índice de pulsatilidad de arterias uterinas',
+                'type' => 'decimal',
+            ],
         ],
     ],
 ];

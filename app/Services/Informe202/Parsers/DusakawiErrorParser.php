@@ -15,6 +15,7 @@ class DusakawiErrorParser implements ErrorParserInterface
      * "variables_relacionadas".
      */
     private array $codeVariables = [
+        '063' => [70],
         '064' => [71],
         '076' => [86, 87, 88, 89, 90],
         '099' => [107],
@@ -31,6 +32,13 @@ class DusakawiErrorParser implements ErrorParserInterface
         '223' => [14],
         '227' => [16],
         '232' => [113],
+        // Septiembre 2026: baciloscopia, HDL, fortificación y tamizajes.
+        '506' => [113],
+        '625' => [95],
+        '328' => [70],
+        '546' => [75], // Fecha tamizaje visual neonatal: resultado 38.
+        '581' => [65], // Fecha oximetría pre/posductal: resultado 48.
+
         '043' => [31],
         '558' => [43, 52],
         '562' => [44, 52],
@@ -69,6 +77,7 @@ class DusakawiErrorParser implements ErrorParserInterface
         '439' => [103, 104],
         '597' => [76, 102],
         '634' => [76, 102],
+        '635' => [102],
         '640' => [103, 104],
 
         '549' => [40],
@@ -113,6 +122,7 @@ class DusakawiErrorParser implements ErrorParserInterface
         '665' => [117],
 
         '670' => [77],
+        '678' => [102],
     ];
 
     /**
@@ -123,6 +133,7 @@ class DusakawiErrorParser implements ErrorParserInterface
      * decidir cuáles campos debe modificar.
      */
     private array $relatedVariablesByCode = [
+        '063' => [70],
         '076' => [86, 87, 88, 89, 90],
         '099' => [106, 107],
         '341' => [78, 79],
@@ -132,6 +143,12 @@ class DusakawiErrorParser implements ErrorParserInterface
         '423' => [31, 32],
         '227' => [16, 52],
         '232' => [112, 113],
+        '506' => [18, 112, 113],
+        '625' => [9, 95, 111, 114],
+        '328' => [9, 70],
+        '546' => [38, 75],
+        '581' => [48, 65],
+
         '043' => [31, 32],
         '558' => [43, 52],
         '562' => [44, 52],
@@ -168,6 +185,7 @@ class DusakawiErrorParser implements ErrorParserInterface
         '439' => [103, 104],
         '597' => [76, 102],
         '634' => [76, 102],
+        '635' => [76, 102],
         '640' => [103, 104],
 
         '550' => [40, 63],
@@ -206,6 +224,7 @@ class DusakawiErrorParser implements ErrorParserInterface
         '652' => [73, 109],
         '655' => [114],
         '665' => [117],
+        '678' => [76, 102],
     ];
 
     /**
@@ -744,6 +763,8 @@ $patterns = [
     'codigo de ocupacion no es valido' => 12,
     'codigo de ocupacion' => 12,
     'el peso de los ninos de 5 a 12 anos' => 30,
+    'el peso de los' => 30, // También cubre el mensaje con erratas de DUSAKAWI.
+
     'la talla de los adultos mayores a 18 anos' => 32,
     'resultado hdl' => 95,
     'resultado hemoglobina' => 104,

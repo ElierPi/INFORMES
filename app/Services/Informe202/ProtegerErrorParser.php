@@ -95,6 +95,13 @@ class ProtegerErrorParser implements ErrorParserInterface
      * @var array<string, array<int, int>>
      */
     private array $variablesByCode = [
+        /*
+         * Proteger código 17:
+         * Resultado de prueba mini-mental state requiere una fecha
+         * válida en la variable 52. La variable afectada es la 16.
+         */
+        '17' => [16],
+
         '076' => [86, 87, 88, 89, 90],
         '223' => [14],
         '232' => [112, 113],
@@ -161,6 +168,12 @@ class ProtegerErrorParser implements ErrorParserInterface
      * @var array<string, array<int, int>>
      */
     private array $relatedVariablesByCode = [
+        /*
+         * Resultado mini-mental (16) depende de la fecha de consulta
+         * de valoración integral (52).
+         */
+        '17' => [16, 52],
+
         '076' => [2, 10, 86, 87, 88, 89, 90],
         '223' => [10, 14],
         '232' => [18, 112, 113],

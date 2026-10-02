@@ -74,6 +74,38 @@ final class Resolucion1552FamiliarCorrectionService
                 continue;
             }
 
+            $isAppointmentDateOutOfPeriod = str_contains(
+                $normalizedMessage,
+                'la fecha de la cita debe estar entre la fecha del reporte y el ultimo dia del mes'
+            );
+
+            if ($isAppointmentDateOutOfPeriod) {
+                if (count($fields) !== 14) {
+                    $manual[] = [
+                        'line' => $lineNumber,
+                        'message' => $error['message'],
+                        'reason' => 'La línea no tiene los 14 campos esperados y no es seguro excluirla automáticamente.',
+                    ];
+                    continue;
+                }
+
+                $remove[$lineNumber] = true;
+                $audit[] = [
+                    'line' => $lineNumber,
+                    'document_type' => $fields[4] ?? '',
+                    'document_number' => $fields[5] ?? '',
+                    'cups' => $fields[7] ?? '',
+                    'appointment_date' => $fields[11] ?? '',
+                    'internal_duplicate' => false,
+                    'first_occurrence' => null,
+                    'previous_value' => $fields[11] ?? '',
+                    'new_value' => null,
+                    'action' => 'Línea excluida: fecha de cita fuera del período reportado',
+                    'message' => $error['message'],
+                ];
+                continue;
+            }
+
             $isMissingAffiliate = str_contains($normalizedMessage, 'afiliado')
                 && str_contains($normalizedMessage, 'no existe en la base de datos');
 

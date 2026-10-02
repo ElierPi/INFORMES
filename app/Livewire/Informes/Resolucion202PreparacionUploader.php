@@ -22,6 +22,12 @@ class Resolucion202PreparacionUploader extends Component
 
     public string $fechaCorte = '';
 
+    /*
+     * NIT utilizado únicamente para nombrar el TXT de PROTEGER.
+     * Se deja vacío para que el usuario indique el NIT correspondiente.
+     */
+    public string $nitProteger = '';
+
     public string $codigoEps = 'EPSI01';
 
     public string $fechaInicial = '';
@@ -369,6 +375,15 @@ class Resolucion202PreparacionUploader extends Component
 
     private function outputValidationRules(): array
     {
+        if ($this->destino === 'proteger') {
+            return [
+                'nitProteger' => [
+                    'required',
+                    'regex:/^\d{9,12}$/',
+                ],
+            ];
+        }
+
         if ($this->destino === 'dusakawi') {
             return [
                 'codigoEps' => [
@@ -430,6 +445,12 @@ class Resolucion202PreparacionUploader extends Component
 
             'fechaCorte.date_format' =>
                 'La fecha de corte debe usar AAAA-MM-DD.',
+
+            'nitProteger.required' =>
+                'Escribe el NIT que debe llevar el archivo TXT de Proteger.',
+
+            'nitProteger.regex' =>
+                'El NIT de Proteger debe contener entre 9 y 12 dígitos, sin puntos ni guiones.',
 
             'codigoEps.required' =>
                 'El código EPS es obligatorio para DUSAKAWI.',
@@ -504,7 +525,23 @@ class Resolucion202PreparacionUploader extends Component
             );
         }
 
-        return '900144397_'
+        $nit = preg_replace(
+            '/\D+/',
+            '',
+            trim($this->nitProteger)
+        ) ?? '';
+
+        if (
+            strlen($nit) < 9
+            || strlen($nit) > 12
+        ) {
+            throw new RuntimeException(
+                'El NIT de Proteger debe contener entre 9 y 12 dígitos.'
+            );
+        }
+
+        return $nit
+            . '_'
             . $period->format('mY')
             . '.txt';
     }

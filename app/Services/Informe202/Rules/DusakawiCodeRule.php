@@ -261,10 +261,7 @@ if (
          * La regla se reconoce tanto por el código 309 como por
          * cualquiera de las dos variables relacionadas.
          */
-        if (
-            $code === '309'
-            || in_array($variable, [95, 111], true)
-        ) {
+        if ($code === '309') {
             $variables = $record['variables'] ?? [];
 
             $risk = trim(
@@ -357,9 +354,55 @@ if (
             }
         }
 
+        /*
+         * Nuevos rechazos del período septiembre de 2026. Se evalúan
+         * antes de cualquier normalización genérica para evitar
+         * sobrescribir un resultado clínico correcto.
+         */
+        if ($code === '506' && $variable === 113) {
+            return $this->bacilloscopyNotSymptomatic506($record);
+        }
+
+        if ($code === '625' && $variable === 95) {
+            return $this->hdlAlreadyNoAplica625($record);
+        }
+
+        if ($code === '546' && $variable === 75) {
+            return $this->neonatalDateWithoutExamination(
+                record: $record,
+                dateVariable: 75,
+                resultVariable: 38,
+                label: 'tamizaje visual neonatal'
+            );
+        }
+
+        if ($code === '581' && $variable === 65) {
+            return $this->neonatalDateWithoutExamination(
+                record: $record,
+                dateVariable: 65,
+                resultVariable: 48,
+                label: 'oximetría pre y posductal'
+            );
+        }
+
+        /*
+         * Un peso registrado no puede corregirse mediante una
+         * suposición decimal sin verificar la fuente clínica.
+         */
+        if (
+            $variable === 30
+            && str_contains($message, 'el peso de los')
+        ) {
+            return $this->manual(
+                variable: 30,
+                currentValue: $currentValue,
+                reason: 'El peso fue rechazado por la EPS. Verificar el valor real en la historia clínica; no se modifica automáticamente.'
+            );
+        }
+
         if (
             $variable === 95
-            && ! in_array($code, ['309', '623', '624'], true)
+            && ! in_array($code, ['309', '623', '624', '625'], true)
         ) {
             return $this->normalizeHdlResult(
                 variable: $variable,
@@ -3732,6 +3775,93 @@ private function normalizeCervicalScreeningBlock(
 
         return false;
     }
+
+/**
+ * Error 506: solo cuando el registro dice expresamente que NO es
+ * sintomático respiratorio (variable 18 = 2), y no existe una toma real.
+ * Catálogo de la variable 113: 4 = No.
+ */
+private function bacilloscopyNotSymptomatic506(array $record): RuleDecision
+{
+    $v = $record['variables'] ?? [];
+    $symptomatic = trim((string) ($v[18] ?? ''));
+    $date = trim((string) ($v[112] ?? ''));
+    $result = trim((string) ($v[113] ?? ''));
+
+    if ($symptomatic !== '2') {
+        return $this->manual(
+            variable: 113,
+            currentValue: $result,
+            reason: 'Error 506: debe verificarse si el paciente es o no sintomático respiratorio antes de cambiar el resultado.'
+        );
+    }
+
+    if ($date !== self::NO_APLICA_DATE) {
+        return $this->manual(
+            variable: 113,
+            currentValue: $result,
+            reason: 'Error 506: existe una fecha distinta de No aplica. Revisar la evidencia clínica antes de corregir el resultado.'
+        );
+    }
+
+    return $this->automaticOrValid(
+        variable: 113,
+        currentValue: $result,
+        newValue: 4,
+        reason: 'No es sintomático respiratorio (18=2); la fecha de baciloscopia ya está como No aplica y el resultado se registra 4=No.'
+    );
+}
+
+/**
+ * Error 625: detectar el caso en el que el HDL ya figura No aplica.
+ * No alterar el riesgo cardiovascular ni la fecha de nacimiento.
+ */
+private function hdlAlreadyNoAplica625(array $record): RuleDecision
+{
+    $v = $record['variables'] ?? [];
+    return $this->manual(
+        variable: 95,
+        currentValue: $v[95] ?? null,
+        reason: 'Error 625: resultado HDL=' . ($v[95] ?? '')
+            . ', fecha HDL=' . ($v[111] ?? '')
+            . ', riesgo cardiovascular=' . ($v[114] ?? '')
+            . '. Confirmar con DUSAKAWI por qué rechaza el par ya registrado como No aplica; no se inventan datos.'
+    );
+}
+
+/**
+ * Si el resultado neonatal es 21 (no evaluado), la fecha no debe
+ * figurar como 1845-01-01 (no aplica), sino como 1800-01-01 (sin dato).
+ * No se reemplaza ninguna fecha real.
+ */
+private function neonatalDateWithoutExamination(
+    array $record,
+    int $dateVariable,
+    int $resultVariable,
+    string $label
+): RuleDecision {
+    $v = $record['variables'] ?? [];
+    $result = trim((string) ($v[$resultVariable] ?? ''));
+    $date = trim((string) ($v[$dateVariable] ?? ''));
+
+    if ($result === '21' && $date === self::NO_APLICA_DATE) {
+        return $this->automaticOrValid(
+            variable: $dateVariable,
+            currentValue: $date,
+            newValue: '1800-01-01',
+            reason: 'El resultado de ' . $label
+                . ' es 21 (no evaluado). Se utiliza el comodín Sin dato '
+                . 'para la fecha, sin inventar una toma.'
+        );
+    }
+
+    return $this->manual(
+        variable: $dateVariable,
+        currentValue: $date,
+        reason: 'Revisar fecha y resultado de ' . $label
+            . '; los datos no permiten una corrección automática segura.'
+    );
+}
 
 private function normalizeRespiratorySymptomaticBlock(
     int $variable,

@@ -28,7 +28,7 @@ final class Resolucion1604DusakawiExcelReader
     ];
 
     private const NIT = '900144397';
-    private const RAZON_SOCIAL = 'Wayuu Anashii';
+    private const RAZON_SOCIAL = 'IPS WAYUU ANASHII';
     private const MUNICIPIO = '44430';
     private const DEPARTAMENTO = '44';
 
@@ -130,6 +130,38 @@ final class Resolucion1604DusakawiExcelReader
                     $pending = (string) max(0, ((int) $prescribed) - ((int) $delivered));
                 }
 
+                /*
+                 * Campos 17 a 25:
+                 *
+                 * El Excel de agosto trae varios de estos campos vacíos.
+                 * No se copian vacíos al TXT porque Aryuwi los exige.
+                 *
+                 * Se conserva la parametrización ya utilizada en el TXT
+                 * de julio:
+                 *
+                 * 17 CANTIDAD_PENDIENTE:
+                 *    cantidad prescrita - entregada inmediatamente.
+                 *
+                 * 18/19:
+                 *    fechas normalizadas a AAAA-MM-DD.
+                 *
+                 * 20 FECHA_ENTREGA_PENDIENTE:
+                 *    se repite la fecha de primera entrega, incluso si
+                 *    la cantidad pendiente es 0.
+                 *
+                 * 21/22:
+                 *    0 = sin autorización/dirección domiciliaria.
+                 *
+                 * 23 MEDICAMENTO_ENTREGADO:
+                 *    1 cuando hubo entrega inmediata > 0.
+                 *
+                 * 24:
+                 *    0 cuando no hubo cantidad entregada domiciliaria.
+                 *
+                 * 25 MODALIDAD_ENTREGA:
+                 *    2 = Intramural cuando no existe autorización
+                 *    domiciliaria y la entrega fue inmediata.
+                 */
                 $record = [
                     self::NIT,
                     self::RAZON_SOCIAL,
@@ -150,12 +182,12 @@ final class Resolucion1604DusakawiExcelReader
                     $pending,
                     $requestDate,
                     $deliveryDate,
-                    $deliveryDate, // En junio se repite incluso con pendiente = 0.
+                    $deliveryDate,
                     '0',
                     '0',
                     $delivered !== '' && (int) $delivered > 0 ? '1' : '0',
                     '0',
-                    '0', // Se replica exactamente el patrón real del TXT de junio.
+                    '2', // 2 = Intramural cuando no hay autorización domiciliaria.
                 ];
 
                 $this->validateRecord($record, $row, $errors, $warnings);
@@ -190,15 +222,52 @@ final class Resolucion1604DusakawiExcelReader
     private function findHeaderRow($sheet): ?int
     {
         $limit = min(25, $sheet->getHighestDataRow());
-        for ($row = 1; $row <= $limit; $row++) {
-            $first = $this->normalizeHeader((string) $sheet->getCell([1, $row])->getFormattedValue());
-            $second = $this->normalizeHeader((string) $sheet->getCell([2, $row])->getFormattedValue());
-            $third = $this->normalizeHeader((string) $sheet->getCell([3, $row])->getFormattedValue());
 
-            if (str_contains($first, 'nombres') && $second === 'identificacion' && str_contains($third, 'de identificacion')) {
+        for ($row = 1; $row <= $limit; $row++) {
+            $first = $this->normalizeHeader(
+                (string) $sheet->getCell([1, $row])->getFormattedValue()
+            );
+
+            $second = $this->normalizeHeader(
+                (string) $sheet->getCell([2, $row])->getFormattedValue()
+            );
+
+            $third = $this->normalizeHeader(
+                (string) $sheet->getCell([3, $row])->getFormattedValue()
+            );
+
+            /*
+             * Formato histórico utilizado por el módulo:
+             *
+             * NOMBRES Y APELLIDOS | IDENTIFICACION | # DE IDENTIFICACION
+             */
+            $legacyLayout =
+                str_contains($first, 'nombres')
+                && $second === 'identificacion'
+                && str_contains($third, 'de identificacion');
+
+            /*
+             * Nuevo formato DSK recibido en agosto de 2026:
+             *
+             * NIT | RAZON SOCIAL | CODIGO DIVIPOLA MUNICIPIO | ...
+             *
+             * El archivo además puede traer dos filas de control antes
+             * del encabezado de detalle, por lo que no asumimos que esté
+             * en la primera fila.
+             */
+            $dskLayout =
+                $first === 'nit'
+                && $second === 'razon social'
+                && str_contains(
+                    $third,
+                    'codigo divipola municipio'
+                );
+
+            if ($legacyLayout || $dskLayout) {
                 return $row;
             }
         }
+
         return null;
     }
 
@@ -206,13 +275,59 @@ final class Resolucion1604DusakawiExcelReader
     private function buildHeaderMap($sheet, int $headerRow): array
     {
         $map = [];
-        $highestColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+
+        $highestColumn =
+            \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString(
+                $sheet->getHighestDataColumn()
+            );
+
+        /*
+         * El lector internamente conserva los nombres lógicos del formato
+         * histórico. Estas equivalencias permiten leer también el formato
+         * DSK nuevo sin cambiar el resto de la lógica ni las reglas de
+         * normalización ya probadas.
+         */
+        $aliases = [
+            'tipo de identificacion del afiliado' => 'identificacion',
+            'numero de identificacion del afiliado' => 'de identificacion',
+            'direccion de afiliado' => 'direccion',
+
+            // El archivo de agosto trae literalmente "TELEFENO".
+            'telefeno del afiliado' => 'telefono',
+            'telefono del afiliado' => 'telefono',
+
+            'diagnostico codigo cie10' => 'diagnostico',
+            'nro formula' => 'n formula',
+            'cum' => 'codigo com',
+            'fecha de vencimiento' => 'vencimiento',
+            'frecuencia del medicamento' => 'frecuencia',
+            'duracion del tratamiento' => 'duracion de tt',
+            'cantidad medicamentos entregados inmediatamente' =>
+                'cantidad entregada',
+            'fecha de solicitud' =>
+                'fecha de autorizacion de entrega',
+            'fecha de primera entrega' =>
+                'fecha de entrega y hora',
+        ];
+
         for ($column = 1; $column <= $highestColumn; $column++) {
-            $header = $this->normalizeHeader((string) $sheet->getCell([$column, $headerRow])->getFormattedValue());
-            if ($header !== '') {
-                $map[$header] = $column;
+            $header = $this->normalizeHeader(
+                (string) $sheet
+                    ->getCell([$column, $headerRow])
+                    ->getFormattedValue()
+            );
+
+            if ($header === '') {
+                continue;
+            }
+
+            $map[$header] = $column;
+
+            if (isset($aliases[$header])) {
+                $map[$aliases[$header]] = $column;
             }
         }
+
         return $map;
     }
 

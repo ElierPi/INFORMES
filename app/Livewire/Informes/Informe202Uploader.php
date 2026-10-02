@@ -5,6 +5,7 @@ namespace App\Livewire\Informes;
 use App\Services\Informe202\Informe202CorrectionService;
 use App\Services\Informe202\Parsers\ErrorParserManager;
 use App\Services\Informe202\Resolution202ExcelReader;
+use App\Services\Informe202\Resolution202TxtExporter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -33,6 +34,12 @@ class Informe202Uploader extends Component
      */
     public string $fechaCorte = '';
 
+    /*
+     * NIT utilizado por PROTEGER para construir el nombre NIT_MMYYYY.txt.
+     * No se deja un NIT predeterminado porque el usuario maneja varios.
+     */
+    public string $nitProteger = '';
+
     public array $errores = [];
 
     public array $correcciones = [];
@@ -48,6 +55,10 @@ class Informe202Uploader extends Component
     public bool $analizado = false;
 
     public ?string $archivoCorregido = null;
+
+    public ?string $archivoTxtCorregido = null;
+
+    public ?string $nombreTxtCorregido = null;
 
     public function mount(): void
     {
@@ -78,6 +89,12 @@ class Informe202Uploader extends Component
                 'date_format:Y-m-d',
             ],
 
+            'nitProteger' => [
+                'nullable',
+                'required_if:eps,proteger',
+                'regex:/^\d{9,12}$/',
+            ],
+
             'archivoInforme' => [
                 'required',
             ],
@@ -96,6 +113,12 @@ class Informe202Uploader extends Component
 
             'fechaCorte.date_format' =>
                 'La fecha de corte debe tener el formato AAAA-MM-DD.',
+
+            'nitProteger.required_if' =>
+                'Escribe el NIT que debe llevar el archivo TXT de Proteger.',
+
+            'nitProteger.regex' =>
+                'El NIT de Proteger debe contener entre 9 y 12 dígitos, sin puntos ni guiones.',
 
             'archivoInforme.required' =>
                 'Selecciona el Excel original de la Resolución 202.',
@@ -277,6 +300,43 @@ class Informe202Uploader extends Component
             $this->archivoCorregido =
                 $correctedRelativePath;
 
+            /*
+             * Proteger requiere, además del Excel de trabajo,
+             * un TXT plano de 119 campos separado por pipe.
+             *
+             * Se genera a partir del Excel YA CORREGIDO para que
+             * incluya exactamente las correcciones aplicadas por el motor.
+             */
+            if ($this->eps === 'proteger') {
+                $txtExporter = app(
+                    Resolution202TxtExporter::class
+                );
+
+                $txtFilename = $txtExporter->filenameFor(
+                    cutoffDate: $this->fechaCorte,
+                    nit: $this->nitProteger
+                );
+
+                $txtRelativePath =
+                    "{$folder}/{$txtFilename}";
+
+                $txtPath = Storage::disk('local')
+                    ->path($txtRelativePath);
+
+                $txtResult = $txtExporter->export(
+                    correctedExcelPath: $correctedPath,
+                    outputTxtPath: $txtPath,
+                    cutoffDate: $this->fechaCorte,
+                    nit: $this->nitProteger
+                );
+
+                $this->archivoTxtCorregido =
+                    $txtRelativePath;
+
+                $this->nombreTxtCorregido =
+                    $txtResult['filename'];
+            }
+
             $this->resumen = [
                 'registros_leidos' =>
                     $excelResult['total_records'],
@@ -301,6 +361,9 @@ class Informe202Uploader extends Component
 
                 'errores_edad' =>
                     count($this->erroresEdad),
+
+                'txt_generado' =>
+                    $this->archivoTxtCorregido !== null,
             ];
 
             $this->mensajeProceso =
@@ -349,6 +412,50 @@ class Informe202Uploader extends Component
         );
     }
 
+    public function descargarTxtCorregido()
+    {
+        if ($this->eps !== 'proteger') {
+            $this->addError(
+                'archivoInforme',
+                'La descarga TXT está disponible únicamente para Proteger.'
+            );
+
+            return null;
+        }
+
+        if (
+            ! $this->archivoTxtCorregido
+            || ! Storage::disk('local')->exists(
+                $this->archivoTxtCorregido
+            )
+        ) {
+            $this->addError(
+                'archivoInforme',
+                'El TXT corregido ya no está disponible.'
+            );
+
+            return null;
+        }
+
+        return Storage::disk('local')->download(
+            $this->archivoTxtCorregido,
+            $this->nombreTxtCorregido
+                ?: (
+                    preg_replace('/\D+/', '', $this->nitProteger)
+                    . '_'
+                    . date(
+                        'mY',
+                        strtotime($this->fechaCorte)
+                    )
+                    . '.txt'
+                ),
+            [
+                'Content-Type' =>
+                    'text/plain; charset=UTF-8',
+            ]
+        );
+    }
+
     public function limpiar(): void
     {
         $this->reset([
@@ -362,6 +469,8 @@ class Informe202Uploader extends Component
             'resumen',
             'analizado',
             'archivoCorregido',
+            'archivoTxtCorregido',
+            'nombreTxtCorregido',
             'procesando',
             'mensajeProceso',
             'errorProceso',
@@ -381,6 +490,8 @@ class Informe202Uploader extends Component
             'resumen',
             'analizado',
             'archivoCorregido',
+            'archivoTxtCorregido',
+            'nombreTxtCorregido',
         ]);
 
         $this->resetValidation();

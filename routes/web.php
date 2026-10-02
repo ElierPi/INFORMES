@@ -48,6 +48,9 @@ Route::view(
 )->name('resolucion-202.corregir-familiar');
 
 
+        Route::view('/rips', 'informes.rips')
+            ->name('rips');
+
         Route::view('/gestantes', 'informes.gestantes')
             ->name('gestantes');
 
@@ -342,7 +345,10 @@ Route::view('/informes/resolucion-1604/dusakawi/corregir', 'informes.resolucion-
     ->middleware(['auth', 'verified'])
     ->name('informes.resolucion-1604.dusakawi.corregir');
 
-
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::view('/informes/gestantes/mensual', 'informes.gestante-mensual')
+        ->name('informes.gestante-mensual');
+});
 
 require __DIR__ . '/test-resolucion-1552-export.php';
 require __DIR__ . '/auth.php';

@@ -14,11 +14,11 @@ final class FamiliarColombiaCorrectionService
     ) {
     }
 
-    private const DEFAULT_ETHNIC_GROUP = '6';
+    private const DEFAULT_ETHNIC_GROUP = "6";
 
-    private const DEFAULT_OCCUPATION = '9999';
+    private const DEFAULT_OCCUPATION = "9999";
 
-    private const DEFAULT_EDUCATION_LEVEL = '13';
+    private const DEFAULT_EDUCATION_LEVEL = "13";
 
     /**
      * @param array<int, array<string, mixed>> $errors
@@ -38,38 +38,36 @@ final class FamiliarColombiaCorrectionService
         string $outputDirectory,
         ?string $outputBaseName = null
     ): array {
-        if (! is_file($inputZip)) {
-            throw new RuntimeException(
-                'No se encontró el ZIP original.'
-            );
+        if (!is_file($inputZip)) {
+            throw new RuntimeException("No se encontró el ZIP original.");
         }
 
-        if (! class_exists(ZipArchive::class)) {
+        if (!class_exists(ZipArchive::class)) {
             throw new RuntimeException(
-                'La extensión ZIP de PHP no está habilitada.'
+                "La extensión ZIP de PHP no está habilitada."
             );
         }
 
         if (
-            ! is_dir($outputDirectory)
-            && ! mkdir($outputDirectory, 0755, true)
-            && ! is_dir($outputDirectory)
+            !is_dir($outputDirectory) &&
+            !mkdir($outputDirectory, 0755, true) &&
+            !is_dir($outputDirectory)
         ) {
             throw new RuntimeException(
-                'No fue posible crear la carpeta de salida.'
+                "No fue posible crear la carpeta de salida."
             );
         }
 
         $source = $this->readZip($inputZip);
 
-        $header = $source['header'];
-        $records = $source['records'];
+        $header = $source["header"];
+        $records = $source["records"];
 
         /*
          * La fecha final de la línea de control se utiliza como
          * fecha de corte para calcular la edad.
          */
-        $cutoffDate = (string) ($header[3] ?? '');
+        $cutoffDate = (string) ($header[3] ?? "");
 
         $corrections = [];
         $unresolved = [];
@@ -78,37 +76,30 @@ final class FamiliarColombiaCorrectionService
          * SIGIRES reporta la columna Fila usando el consecutivo
          * de la variable 1. No se depende de desplazamientos -1 o -2.
          */
-        $recordIndexes = $this->indexRecordsByConsecutive(
-            $records
-        );
+        $recordIndexes = $this->indexRecordsByConsecutive($records);
 
         foreach ($errors as $error) {
-            $reportedLine = (int) ($error['record'] ?? 0);
+            $reportedLine = (int) ($error["record"] ?? 0);
 
-            $recordIndex = $recordIndexes[
-                (string) $reportedLine
-            ] ?? null;
+            $recordIndex = $recordIndexes[(string) $reportedLine] ?? null;
 
-            $variable = (int) ($error['variable'] ?? -1);
+            $variable = (int) ($error["variable"] ?? -1);
 
             if (
-                $recordIndex === null
-                || ! isset($records[$recordIndex])
-                || $variable < 0
-                || $variable > 118
+                $recordIndex === null ||
+                !isset($records[$recordIndex]) ||
+                $variable < 0 ||
+                $variable > 118
             ) {
                 $unresolved[] = $this->unresolved(
                     $error,
-                    'La fila o columna indicada no existe en el TXT.'
+                    "La fila o columna indicada no existe en el TXT."
                 );
 
                 continue;
             }
 
-            $before = (string) (
-                $records[$recordIndex][$variable]
-                ?? ''
-            );
+            $before = (string) ($records[$recordIndex][$variable] ?? "");
 
             $decision = $this->resolveCorrection(
                 record: $records[$recordIndex],
@@ -120,7 +111,7 @@ final class FamiliarColombiaCorrectionService
             if ($decision === null) {
                 $unresolved[] = $this->unresolved(
                     $error,
-                    'La regla todavía requiere revisión manual.'
+                    "La regla todavía requiere revisión manual."
                 );
 
                 continue;
@@ -133,10 +124,8 @@ final class FamiliarColombiaCorrectionService
                     continue;
                 }
 
-                $targetBefore = (string) (
-                    $records[$recordIndex][$targetVariable]
-                    ?? ''
-                );
+                $targetBefore =
+                    (string) ($records[$recordIndex][$targetVariable] ?? "");
 
                 $after = $this->cleanValue($after);
 
@@ -147,13 +136,12 @@ final class FamiliarColombiaCorrectionService
                 $records[$recordIndex][$targetVariable] = $after;
 
                 $corrections[] = [
-                    'record' => $reportedLine,
-                    'variable' => $targetVariable,
-                    'type' => $error['type'] ?? null,
-                    'before' => $targetBefore,
-                    'after' => $after,
-                    'description' =>
-                        $error['description'] ?? '',
+                    "record" => $reportedLine,
+                    "variable" => $targetVariable,
+                    "type" => $error["type"] ?? null,
+                    "before" => $targetBefore,
+                    "after" => $after,
+                    "description" => $error["description"] ?? "",
                 ];
             }
         }
@@ -164,20 +152,20 @@ final class FamiliarColombiaCorrectionService
          */
         foreach ($records as $recordIndex => &$record) {
             foreach ([5, 6, 7, 8] as $variable) {
-                $before = (string) ($record[$variable] ?? '');
+                $before = (string) ($record[$variable] ?? "");
                 $after = $this->repairMojibake($before);
 
                 if ($before !== $after) {
                     $record[$variable] = $after;
 
                     $corrections[] = [
-                        'record' => $recordIndex + 1,
-                        'variable' => $variable,
-                        'type' => 'CE',
-                        'before' => $before,
-                        'after' => $after,
-                        'description' =>
-                            'Corrección global de codificación ANSI.',
+                        "record" => $recordIndex + 1,
+                        "variable" => $variable,
+                        "type" => "CE",
+                        "before" => $before,
+                        "after" => $after,
+                        "description" =>
+                            "Corrección global de codificación ANSI.",
                     ];
                 }
             }
@@ -194,59 +182,39 @@ final class FamiliarColombiaCorrectionService
          * El ZIP cargado se guarda temporalmente como original.zip,
          * pero la salida debe conservar el nombre normativo real.
          */
-        $baseName = $outputBaseName !== null
-            ? pathinfo(
-                basename($outputBaseName),
-                PATHINFO_FILENAME
-            )
-            : pathinfo(
-                basename($inputZip),
-                PATHINFO_FILENAME
-            );
+        $baseName =
+            $outputBaseName !== null
+                ? pathinfo(basename($outputBaseName), PATHINFO_FILENAME)
+                : pathinfo(basename($inputZip), PATHINFO_FILENAME);
 
-        $baseName = preg_replace(
-            '/[^A-Za-z0-9_-]/',
-            '',
-            $baseName
-        ) ?: 'RESOLUCION_202';
+        $baseName =
+            preg_replace("/[^A-Za-z0-9_-]/", "", $baseName) ?: "RESOLUCION_202";
 
-        $txtName = $baseName . '.txt';
-        $zipName = $baseName . '.zip';
+        $txtName = $baseName . ".txt";
+        $zipName = $baseName . ".zip";
 
-        $txtPath = $outputDirectory
-            . DIRECTORY_SEPARATOR
-            . $txtName;
+        $txtPath = $outputDirectory . DIRECTORY_SEPARATOR . $txtName;
 
-        $zipPath = $outputDirectory
-            . DIRECTORY_SEPARATOR
-            . $zipName;
+        $zipPath = $outputDirectory . DIRECTORY_SEPARATOR . $zipName;
 
-        $this->writeAnsiTxt(
-            $txtPath,
-            $header,
-            $records
-        );
+        $this->writeAnsiTxt($txtPath, $header, $records);
 
-        $this->writeZip(
-            $zipPath,
-            $txtPath,
-            $txtName
-        );
+        $this->writeZip($zipPath, $txtPath, $txtName);
 
         return [
-            'output_zip' => $zipPath,
-            'output_txt' => $txtPath,
-            'header' => $header,
+            "output_zip" => $zipPath,
+            "output_txt" => $txtPath,
+            "header" => $header,
 
-            'statistics' => [
-                'records' => count($records),
-                'errors_received' => count($errors),
-                'corrections' => count($corrections),
-                'unresolved' => count($unresolved),
+            "statistics" => [
+                "records" => count($records),
+                "errors_received" => count($errors),
+                "corrections" => count($corrections),
+                "unresolved" => count($unresolved),
             ],
 
-            'corrections' => $corrections,
-            'unresolved' => $unresolved,
+            "corrections" => $corrections,
+            "unresolved" => $unresolved,
         ];
     }
 
@@ -263,9 +231,7 @@ final class FamiliarColombiaCorrectionService
         $open = $zip->open($zipPath);
 
         if ($open !== true) {
-            throw new RuntimeException(
-                'No fue posible abrir el ZIP original.'
-            );
+            throw new RuntimeException("No fue posible abrir el ZIP original.");
         }
 
         $txtEntries = [];
@@ -274,10 +240,8 @@ final class FamiliarColombiaCorrectionService
             $name = $zip->getNameIndex($index);
 
             if (
-                is_string($name)
-                && mb_strtolower(
-                    pathinfo($name, PATHINFO_EXTENSION)
-                ) === 'txt'
+                is_string($name) &&
+                mb_strtolower(pathinfo($name, PATHINFO_EXTENSION)) === "txt"
             ) {
                 $txtEntries[] = $name;
             }
@@ -287,81 +251,58 @@ final class FamiliarColombiaCorrectionService
             $zip->close();
 
             throw new RuntimeException(
-                'El ZIP debe contener exactamente un archivo TXT.'
+                "El ZIP debe contener exactamente un archivo TXT."
             );
         }
 
         $raw = $zip->getFromName($txtEntries[0]);
         $zip->close();
 
-        if (! is_string($raw)) {
-            throw new RuntimeException(
-                'No fue posible leer el TXT del ZIP.'
-            );
+        if (!is_string($raw)) {
+            throw new RuntimeException("No fue posible leer el TXT del ZIP.");
         }
 
         $text = $this->decodeInput($raw);
 
-        $lines = preg_split(
-            '/\r\n|\n|\r/',
-            $text
-        ) ?: [];
+        $lines = preg_split('/\r\n|\n|\r/', $text) ?: [];
 
         $lines = array_values(
             array_filter(
                 $lines,
-                static fn (string $line): bool =>
-                    trim($line) !== ''
+                static fn(string $line): bool => trim($line) !== ""
             )
         );
 
         if ($lines === []) {
-            throw new RuntimeException(
-                'El TXT está vacío.'
-            );
+            throw new RuntimeException("El TXT está vacío.");
         }
 
-        $header = array_map(
-            'trim',
-            explode('|', $lines[0])
-        );
+        $header = array_map("trim", explode("|", $lines[0]));
 
-        if (
-            count($header) !== 5
-            || ($header[0] ?? null) !== '1'
-        ) {
+        if (count($header) !== 5 || ($header[0] ?? null) !== "1") {
             throw new RuntimeException(
-                'La primera línea debe ser un registro tipo 1 con 5 campos.'
+                "La primera línea debe ser un registro tipo 1 con 5 campos."
             );
         }
 
         $records = [];
 
-        foreach (
-            array_slice($lines, 1)
-            as $lineNumber => $line
-        ) {
-            $values = array_map(
-                'trim',
-                explode('|', $line)
-            );
+        foreach (array_slice($lines, 1) as $lineNumber => $line) {
+            $values = array_map("trim", explode("|", $line));
 
             if (count($values) !== 119) {
                 throw new RuntimeException(
                     sprintf(
-                        'El registro tipo 2 número %d contiene %d campos; se esperaban 119.',
+                        "El registro tipo 2 número %d contiene %d campos; se esperaban 119.",
                         $lineNumber + 1,
                         count($values)
                     )
                 );
             }
 
-            if (($values[0] ?? null) !== '2') {
+            if (($values[0] ?? null) !== "2") {
                 throw new RuntimeException(
-                    sprintf(
-                        'El registro %d no es tipo 2.',
-                        $lineNumber + 1
-                    )
+                    sprintf("El registro %d no es tipo 2.", $lineNumber + 1)
                 );
             }
 
@@ -369,8 +310,8 @@ final class FamiliarColombiaCorrectionService
         }
 
         return [
-            'header' => $header,
-            'records' => $records,
+            "header" => $header,
+            "records" => $records,
         ];
     }
 
@@ -395,16 +336,93 @@ final class FamiliarColombiaCorrectionService
          * En escalas de desarrollo se respeta primero ese valor,
          * porque la edad se evalúa con la fecha de la atención.
          */
-        $type = mb_strtoupper(
-            trim((string) ($error['type'] ?? '')),
-            'UTF-8'
-        );
+        $type = mb_strtoupper(trim((string) ($error["type"] ?? "")), "UTF-8");
 
         $description = $this->asciiLower(
-            (string) ($error['description'] ?? '')
+            (string) ($error["description"] ?? "")
         );
 
-        $newValue = $error['new_value'] ?? null;
+        $newValue = $error["new_value"] ?? null;
+
+        /*
+         * CIERRE DE REGLAS PENDIENTES - SIGIRES
+         * ---------------------------------------
+         *
+         * Estas reglas se ejecutan únicamente cuando el log reporta
+         * exactamente la inconsistencia correspondiente. No se aplican
+         * de forma masiva a todos los registros.
+         */
+
+        /*
+         * Variable 51:
+         * Fecha atención promoción y apoyo lactancia materna.
+         *
+         * SIGIRES:
+         * "La atención en salud para la promoción y apoyo de la
+         * lactancia materna no aplica para la edad de la persona
+         * o porque no es gestante".
+         *
+         * 1845-01-01 = NO APLICA.
+         */
+        if (
+            $variable === 51 &&
+            str_contains($description, "lactancia materna") &&
+            (str_contains($description, "no aplica para la edad") ||
+                str_contains($description, "no es gestante"))
+        ) {
+            return [
+                51 => "1845-01-01",
+            ];
+        }
+
+        /*
+         * Variables 38 / 75:
+         *
+         * 38 = Resultado de tamizaje visual neonatal.
+         * 75 = Fecha de tamizaje visual neonatal.
+         *
+         * Cuando el resultado es 21 (riesgo no evaluado), SIGIRES
+         * exige que la fecha sea un comodín de no realización o
+         * ausencia de dato.
+         *
+         * 1800-01-01 = NO SE TIENE EL DATO.
+         */
+        if (
+            $variable === 38 &&
+            trim((string) ($record[38] ?? "")) === "21" &&
+            str_contains($description, "tamizaje visual neonatal")
+        ) {
+            return [
+                38 => "21",
+                75 => "1800-01-01",
+            ];
+        }
+
+        /*
+         * Variable 48:
+         * Fecha de tamización con oximetría pre y pos ductual.
+         *
+         * SIGIRES reporta la propia variable 48 cuando el resultado
+         * asociado es 21 y la fecha debe llevar un comodín de
+         * no realización / sin dato.
+         *
+         * Por tanto NO se intenta validar que V48 sea "21":
+         * V48 es precisamente la fecha que debemos corregir.
+         */
+        if (
+            $variable === 48 &&
+            str_contains($description, "oximetria") &&
+            (str_contains($description, "pre y pos ductual") ||
+                str_contains($description, "pre y post ductual") ||
+                str_contains($description, "pre y pos ductal") ||
+                str_contains($description, "pre y post ductal") ||
+                str_contains($description, "posductal")) &&
+            str_contains($description, "21")
+        ) {
+            return [
+                48 => "1800-01-01",
+            ];
+        }
 
         /*
          * Reglas de cierre identificadas en logs (13).xls de
@@ -421,15 +439,12 @@ final class FamiliarColombiaCorrectionService
          * respaldo definido en el catálogo del informe.
          */
         if (
-            $type === 'CE'
-            && $variable === 6
-            && trim((string) ($record[6] ?? '')) === ''
+            $type === "CE" &&
+            $variable === 6 &&
+            trim((string) ($record[6] ?? "")) === ""
         ) {
             return [
-                6 => (string) config(
-                    'resolucion202.fields.6.fallback',
-                    'NONE'
-                ),
+                6 => (string) config("resolucion202.fields.6.fallback", "NONE"),
             ];
         }
 
@@ -439,12 +454,12 @@ final class FamiliarColombiaCorrectionService
          * 64 = fecha No aplica
          */
         if (
-            $variable === 22
-            && str_contains($description, 'hombre menor de 40')
+            $variable === 22 &&
+            str_contains($description, "hombre menor de 40")
         ) {
             return [
-                22 => '0',
-                64 => '1845-01-01',
+                22 => "0",
+                64 => "1845-01-01",
             ];
         }
 
@@ -453,12 +468,9 @@ final class FamiliarColombiaCorrectionService
          * la variable 22. Solo se codifica cuando el texto permite una
          * deducción inequívoca.
          */
-        if (
-            $type === 'CE'
-            && $variable === 22
-        ) {
+        if ($type === "CE" && $variable === 22) {
             $rectalResult = $this->normalizeRectalExamResult(
-                (string) ($record[22] ?? '')
+                (string) ($record[22] ?? "")
             );
 
             if ($rectalResult !== null) {
@@ -473,12 +485,9 @@ final class FamiliarColombiaCorrectionService
          * NEGATIVO / NO REACTIVO = 5
          * POSITIVO / REACTIVO = 4
          */
-        if (
-            $type === 'CE'
-            && $variable === 83
-        ) {
+        if ($type === "CE" && $variable === 83) {
             $hivResult = $this->normalizeHivResult(
-                (string) ($record[83] ?? '')
+                (string) ($record[83] ?? "")
             );
 
             if ($hivResult !== null) {
@@ -494,14 +503,11 @@ final class FamiliarColombiaCorrectionService
          * aunque no exista una atención registrada.
          */
         if (
-            $type === 'CE'
-            && $variable === 76
-            && str_contains($description, 'salud bucal')
+            $type === "CE" &&
+            $variable === 76 &&
+            str_contains($description, "salud bucal")
         ) {
-            $oralAgeMonths = $this->ageMonths(
-                $record,
-                $cutoffDate
-            );
+            $oralAgeMonths = $this->ageMonths($record, $cutoffDate);
 
             if ($oralAgeMonths === null) {
                 return null;
@@ -509,12 +515,12 @@ final class FamiliarColombiaCorrectionService
 
             return $oralAgeMonths < 6
                 ? [
-                    76 => '1845-01-01',
-                    102 => '0',
+                    76 => "1845-01-01",
+                    102 => "0",
                 ]
                 : [
-                    76 => '1800-01-01',
-                    102 => '21',
+                    76 => "1800-01-01",
+                    102 => "21",
                 ];
         }
 
@@ -525,19 +531,19 @@ final class FamiliarColombiaCorrectionService
          * todo el bloque al patrón permitido de riesgo no evaluado.
          */
         if (
-            $type === 'CE'
-            && $variable === 87
-            && str_contains(
+            $type === "CE" &&
+            $variable === 87 &&
+            str_contains(
                 $description,
-                'debe registrar fecha tamizaje cancer de cuello uterino'
+                "debe registrar fecha tamizaje cancer de cuello uterino"
             )
         ) {
             return [
-                86 => '21',
-                87 => '1800-01-01',
-                88 => '21',
-                89 => '999',
-                90 => '999',
+                86 => "21",
+                87 => "1800-01-01",
+                88 => "21",
+                89 => "999",
+                90 => "999",
             ];
         }
 
@@ -547,16 +553,14 @@ final class FamiliarColombiaCorrectionService
          * atención del parto a No aplica.
          */
         if (
-            in_array($type, ['WA', 'WASHINGTON'], true)
-            && $variable === 49
-            && (
-                str_contains($description, 'parto')
-                || str_contains($description, 'cesaria')
-                || str_contains($description, 'cesarea')
-            )
+            in_array($type, ["WA", "WASHINGTON"], true) &&
+            $variable === 49 &&
+            (str_contains($description, "parto") ||
+                str_contains($description, "cesaria") ||
+                str_contains($description, "cesarea"))
         ) {
             return [
-                49 => '1845-01-01',
+                49 => "1845-01-01",
             ];
         }
 
@@ -566,14 +570,14 @@ final class FamiliarColombiaCorrectionService
          * se mantiene el resultado como riesgo no evaluado.
          */
         if (
-            in_array($type, ['WA', 'WASHINGTON'], true)
-            && $variable === 82
-            && str_contains($description, 'gestante')
-            && str_contains($description, 'vih')
+            in_array($type, ["WA", "WASHINGTON"], true) &&
+            $variable === 82 &&
+            str_contains($description, "gestante") &&
+            str_contains($description, "vih")
         ) {
             return [
-                82 => '1800-01-01',
-                83 => '21',
+                82 => "1800-01-01",
+                83 => "21",
             ];
         }
 
@@ -589,36 +593,31 @@ final class FamiliarColombiaCorrectionService
          * Si la fecha usa un comodín de no realización o sin dato,
          * el resultado debe quedar en 21.
          */
-        if (
-            $type === 'CD'
-            && $variable === 28
-        ) {
-            $visualDate = trim(
-                (string) ($record[62] ?? '')
-            );
+        if ($type === "CD" && $variable === 28) {
+            $visualDate = trim((string) ($record[62] ?? ""));
 
             if (
                 in_array(
                     $visualDate,
                     [
-                        '1800-01-01',
-                        '1805-01-01',
-                        '1810-01-01',
-                        '1825-01-01',
-                        '1830-01-01',
-                        '1835-01-01',
+                        "1800-01-01",
+                        "1805-01-01",
+                        "1810-01-01",
+                        "1825-01-01",
+                        "1830-01-01",
+                        "1835-01-01",
                     ],
                     true
                 )
             ) {
                 return [
-                    28 => '21',
+                    28 => "21",
                 ];
             }
 
-            if ($visualDate === '1845-01-01') {
+            if ($visualDate === "1845-01-01") {
                 return [
-                    28 => '0',
+                    28 => "0",
                 ];
             }
 
@@ -636,30 +635,59 @@ final class FamiliarColombiaCorrectionService
          * 48 -> 148
          * 60 -> 160
          */
-        if (
-            $type === 'CE'
-            && $variable === 32
-        ) {
+        if ($type === "CE" && $variable === 32) {
             $rawHeight = str_replace(
-                ',',
-                '.',
-                trim((string) ($record[32] ?? ''))
+                ",",
+                ".",
+                trim((string) ($record[32] ?? ""))
             );
 
             /*
-             * Familiar exige máximo tres caracteres para la talla.
-             * Los decimales se convierten a centímetros enteros con
-             * redondeo convencional: 119.5 -> 120, 155.8 -> 156.
+             * Caso Familiar Colombia:
+             * algunas tallas llegan desplazadas un decimal, por ejemplo:
+             *
+             * 15.5 -> 155 cm
+             * 16.3 -> 163 cm
+             * 17.0 -> 170 cm
+             *
+             * El validador las rechaza por longitud/formato. Cuando el
+             * valor decimal está entre 10.0 y 22.5, se interpreta como
+             * decímetros y se convierte a centímetros multiplicando x10.
              */
             if (
-                is_numeric($rawHeight)
-                && (
-                    str_contains($rawHeight, '.')
-                    || str_contains(
-                        (string) ($record[32] ?? ''),
-                        ','
-                    )
+                is_numeric($rawHeight) &&
+                (
+                    str_contains($rawHeight, ".")
+                    || str_contains((string) ($record[32] ?? ""), ",")
                 )
+            ) {
+                $heightValue = (float) $rawHeight;
+
+                if ($heightValue >= 10.0 && $heightValue <= 22.5) {
+                    $candidate = (int) round(
+                        $heightValue * 10,
+                        0,
+                        PHP_ROUND_HALF_UP
+                    );
+
+                    if ($candidate >= 100 && $candidate <= 225) {
+                        return [
+                            32 => (string) $candidate,
+                        ];
+                    }
+                }
+            }
+
+            /*
+             * Familiar exige máximo tres caracteres para la talla.
+             * Los decimales ya expresados en centímetros se convierten
+             * a entero con redondeo convencional:
+             * 119.5 -> 120, 155.8 -> 156.
+             */
+            if (
+                is_numeric($rawHeight) &&
+                (str_contains($rawHeight, ".") ||
+                    str_contains((string) ($record[32] ?? ""), ","))
             ) {
                 $candidate = (int) round(
                     (float) $rawHeight,
@@ -667,10 +695,7 @@ final class FamiliarColombiaCorrectionService
                     PHP_ROUND_HALF_UP
                 );
 
-                if (
-                    $candidate >= 20
-                    && $candidate <= 225
-                ) {
+                if ($candidate >= 20 && $candidate <= 225) {
                     return [
                         32 => (string) $candidate,
                     ];
@@ -680,16 +705,10 @@ final class FamiliarColombiaCorrectionService
             if (ctype_digit($rawHeight)) {
                 $height = (int) $rawHeight;
 
-                if (
-                    $height >= 30
-                    && $height <= 99
-                ) {
+                if ($height >= 30 && $height <= 99) {
                     $candidate = $height + 100;
 
-                    if (
-                        $candidate >= 130
-                        && $candidate <= 225
-                    ) {
+                    if ($candidate >= 130 && $candidate <= 225) {
                         return [
                             32 => (string) $candidate,
                         ];
@@ -708,27 +727,19 @@ final class FamiliarColombiaCorrectionService
          * La advertencia de SIGIRES indica que la actividad no debe
          * reportarse para esta población. Se lleva el par a No aplica.
          */
-        if (
-            in_array($type, ['WA', 'WASHINGTON'], true)
-            && $variable === 42
-        ) {
-            $birthDate = trim(
-                (string) ($record[9] ?? '')
-            );
+        if (in_array($type, ["WA", "WASHINGTON"], true) && $variable === 42) {
+            $birthDate = trim((string) ($record[9] ?? ""));
 
             try {
                 $birth = \DateTimeImmutable::createFromFormat(
-                    '!Y-m-d',
+                    "!Y-m-d",
                     $birthDate
                 );
 
-                if (
-                    $birth !== false
-                    && (int) $birth->format('Y') > 1996
-                ) {
+                if ($birth !== false && (int) $birth->format("Y") > 1996) {
                     return [
-                        42 => '0',
-                        110 => '1845-01-01',
+                        42 => "0",
+                        110 => "1845-01-01",
                     ];
                 }
             } catch (\Throwable) {
@@ -750,36 +761,23 @@ final class FamiliarColombiaCorrectionService
          * diagnóstico. Se transforma todo el bloque al patrón permitido
          * de "no realizado / sin dato".
          */
-        if (
-            $type === 'CE'
-            && $variable === 88
-        ) {
-            $screeningType = trim(
-                (string) ($record[86] ?? '')
-            );
+        if ($type === "CE" && $variable === 88) {
+            $screeningType = trim((string) ($record[86] ?? ""));
 
-            $screeningResult = trim(
-                (string) ($record[88] ?? '')
-            );
+            $screeningResult = trim((string) ($record[88] ?? ""));
 
             if (
-                in_array(
-                    $screeningType,
-                    ['1', '4'],
-                    true
-                )
-                && (
-                    $screeningResult === ''
-                    || ! ctype_digit($screeningResult)
-                    || (int) $screeningResult < 1
-                    || (int) $screeningResult > 18
-                )
+                in_array($screeningType, ["1", "4"], true) &&
+                ($screeningResult === "" ||
+                    !ctype_digit($screeningResult) ||
+                    (int) $screeningResult < 1 ||
+                    (int) $screeningResult > 18)
             ) {
                 return [
-                    86 => '21',
-                    87 => '1800-01-01',
-                    88 => '21',
-                    89 => '999',
+                    86 => "21",
+                    87 => "1800-01-01",
+                    88 => "21",
+                    89 => "999",
                 ];
             }
 
@@ -793,43 +791,28 @@ final class FamiliarColombiaCorrectionService
          * bloques de variables relacionadas.
          */
 
-        $ageYears = $this->ageYears(
-            $record,
-            $cutoffDate
-        );
+        $ageYears = $this->ageYears($record, $cutoffDate);
 
-        $ageMonths = $this->ageMonths(
-            $record,
-            $cutoffDate
-        );
+        $ageMonths = $this->ageMonths($record, $cutoffDate);
 
-        $risk = trim(
-            (string) ($record[114] ?? '')
-        );
+        $risk = trim((string) ($record[114] ?? ""));
 
         /*
          * LDL:
          * 72 = fecha de toma
          * 92 = resultado
          */
-        if (
-            $type === 'CD'
-            && $variable === 92
-        ) {
-            if (
-                $ageMonths !== null
-                && $ageMonths < 348
-                && $risk === '0'
-            ) {
+        if ($type === "CD" && $variable === 92) {
+            if ($ageMonths !== null && $ageMonths < 348 && $risk === "0") {
                 return [
-                    72 => '1845-01-01',
-                    92 => '0',
+                    72 => "1845-01-01",
+                    92 => "0",
                 ];
             }
 
             return [
-                72 => '1800-01-01',
-                92 => '998',
+                72 => "1800-01-01",
+                92 => "998",
             ];
         }
 
@@ -838,24 +821,17 @@ final class FamiliarColombiaCorrectionService
          * 118 = fecha
          * 98 = resultado
          */
-        if (
-            $type === 'CD'
-            && $variable === 98
-        ) {
-            if (
-                $ageMonths !== null
-                && $ageMonths < 348
-                && $risk === '0'
-            ) {
+        if ($type === "CD" && $variable === 98) {
+            if ($ageMonths !== null && $ageMonths < 348 && $risk === "0") {
                 return [
-                    118 => '1845-01-01',
-                    98 => '0',
+                    118 => "1845-01-01",
+                    98 => "0",
                 ];
             }
 
             return [
-                118 => '1800-01-01',
-                98 => '998',
+                118 => "1800-01-01",
+                98 => "998",
             ];
         }
 
@@ -864,24 +840,17 @@ final class FamiliarColombiaCorrectionService
          * 111 = fecha
          * 95 = resultado
          */
-        if (
-            $type === 'CD'
-            && $variable === 95
-        ) {
-            if (
-                $ageMonths !== null
-                && $ageMonths < 348
-                && $risk === '0'
-            ) {
+        if ($type === "CD" && $variable === 95) {
+            if ($ageMonths !== null && $ageMonths < 348 && $risk === "0") {
                 return [
-                    111 => '1845-01-01',
-                    95 => '0',
+                    111 => "1845-01-01",
+                    95 => "0",
                 ];
             }
 
             return [
-                111 => '1800-01-01',
-                95 => '998',
+                111 => "1800-01-01",
+                95 => "998",
             ];
         }
 
@@ -891,8 +860,8 @@ final class FamiliarColombiaCorrectionService
          * 63 = fecha
          */
         if (
-            in_array($variable, [40, 63], true)
-            && in_array($type, ['CD', 'CE'], true)
+            in_array($variable, [40, 63], true) &&
+            in_array($type, ["CD", "CE"], true)
         ) {
             if ($ageYears === null) {
                 return null;
@@ -900,14 +869,14 @@ final class FamiliarColombiaCorrectionService
 
             if ($ageYears > 12) {
                 return [
-                    40 => '0',
-                    63 => '1845-01-01',
+                    40 => "0",
+                    63 => "1845-01-01",
                 ];
             }
 
             return [
-                40 => '21',
-                63 => '1800-01-01',
+                40 => "21",
+                63 => "1800-01-01",
             ];
         }
 
@@ -916,27 +885,21 @@ final class FamiliarColombiaCorrectionService
          * 36 = resultado
          * 66 = fecha
          */
-        if (
-            $type === 'CE'
-            && $variable === 36
-        ) {
+        if ($type === "CE" && $variable === 36) {
             if ($ageYears === null) {
                 return null;
             }
 
-            if (
-                $ageYears >= 50
-                && $ageYears <= 75
-            ) {
+            if ($ageYears >= 50 && $ageYears <= 75) {
                 return [
-                    36 => '21',
-                    66 => '1800-01-01',
+                    36 => "21",
+                    66 => "1800-01-01",
                 ];
             }
 
             return [
-                36 => '0',
-                66 => '1845-01-01',
+                36 => "0",
+                66 => "1845-01-01",
             ];
         }
 
@@ -945,47 +908,30 @@ final class FamiliarColombiaCorrectionService
          * 42 = resultado
          * 110 = fecha
          */
-        if (
-            $type === 'CE'
-            && $variable === 42
-        ) {
-            $date = trim(
-                (string) ($record[110] ?? '')
-            );
+        if ($type === "CE" && $variable === 42) {
+            $date = trim((string) ($record[110] ?? ""));
 
-            $result = trim(
-                (string) ($record[42] ?? '')
-            );
+            $result = trim((string) ($record[42] ?? ""));
 
-            if ($date === '1845-01-01') {
+            if ($date === "1845-01-01") {
                 return [
-                    42 => '0',
-                    110 => '1845-01-01',
+                    42 => "0",
+                    110 => "1845-01-01",
                 ];
             }
 
-            if (
-                $date === '1800-01-01'
-                || $result === '21'
-            ) {
+            if ($date === "1800-01-01" || $result === "21") {
                 return [
-                    42 => '21',
-                    110 => '1800-01-01',
+                    42 => "21",
+                    110 => "1800-01-01",
                 ];
             }
 
             if ($this->isRealDate($date)) {
-                if (
-                    $result === ''
-                    || in_array(
-                        $result,
-                        ['0', '21'],
-                        true
-                    )
-                ) {
+                if ($result === "" || in_array($result, ["0", "21"], true)) {
                     return [
-                        42 => '21',
-                        110 => '1800-01-01',
+                        42 => "21",
+                        110 => "1800-01-01",
                     ];
                 }
 
@@ -996,8 +942,8 @@ final class FamiliarColombiaCorrectionService
             }
 
             return [
-                42 => '21',
-                110 => '1800-01-01',
+                42 => "21",
+                110 => "1800-01-01",
             ];
         }
 
@@ -1005,12 +951,9 @@ final class FamiliarColombiaCorrectionService
          * Tratamiento ablativo o escisión.
          * El propio mensaje de SIGIRES indica que corresponde No aplica.
          */
-        if (
-            $type === 'CE'
-            && $variable === 47
-        ) {
+        if ($type === "CE" && $variable === 47) {
             return [
-                47 => '0',
+                47 => "0",
             ];
         }
 
@@ -1019,24 +962,17 @@ final class FamiliarColombiaCorrectionService
          * 57 = resultado
          * 105 = fecha
          */
-        if (
-            $type === 'CE'
-            && $variable === 57
-        ) {
-            if (
-                $ageMonths !== null
-                && $ageMonths < 348
-                && $risk === '0'
-            ) {
+        if ($type === "CE" && $variable === 57) {
+            if ($ageMonths !== null && $ageMonths < 348 && $risk === "0") {
                 return [
-                    57 => '0',
-                    105 => '1845-01-01',
+                    57 => "0",
+                    105 => "1845-01-01",
                 ];
             }
 
             return [
-                57 => '998',
-                105 => '1800-01-01',
+                57 => "998",
+                105 => "1800-01-01",
             ];
         }
 
@@ -1045,41 +981,30 @@ final class FamiliarColombiaCorrectionService
          * 24 = resultado
          * 67 = fecha
          */
-        if (
-            $type === 'CE'
-            && $variable === 24
-        ) {
+        if ($type === "CE" && $variable === 24) {
             if ($ageYears === null) {
                 return null;
             }
 
-            if (
-                $ageYears < 50
-                || $ageYears > 75
-            ) {
+            if ($ageYears < 50 || $ageYears > 75) {
                 return [
-                    24 => '0',
-                    67 => '1845-01-01',
+                    24 => "0",
+                    67 => "1845-01-01",
                 ];
             }
 
             return [
-                24 => '21',
-                67 => '1800-01-01',
+                24 => "21",
+                67 => "1800-01-01",
             ];
         }
 
         /*
          * Creatinina decimal no válida, por ejemplo 0.00.
          */
-        if (
-            $type === 'CE'
-            && $variable === 107
-        ) {
+        if ($type === "CE" && $variable === 107) {
             return [
-                107 => $this->normalizeDecimal(
-                    (string) ($record[107] ?? '')
-                ),
+                107 => $this->normalizeDecimal((string) ($record[107] ?? "")),
             ];
         }
 
@@ -1088,12 +1013,12 @@ final class FamiliarColombiaCorrectionService
          * 22 no es válido; se homologa a 21, sin resultado evaluado.
          */
         if (
-            $type === 'CE'
-            && $variable === 79
-            && trim((string) ($record[79] ?? '')) === '22'
+            $type === "CE" &&
+            $variable === 79 &&
+            trim((string) ($record[79] ?? "")) === "22"
         ) {
             return [
-                79 => '21',
+                79 => "21",
             ];
         }
 
@@ -1101,18 +1026,13 @@ final class FamiliarColombiaCorrectionService
          * Riesgo cardiovascular y metabólico.
          * En mayores de edad, 2 no es válido y se homologa a 21.
          */
-        if (
-            $type === 'CE'
-            && in_array($variable, [114, 117], true)
-        ) {
+        if ($type === "CE" && in_array($variable, [114, 117], true)) {
             if ($ageYears === null) {
                 return null;
             }
 
             return [
-                $variable => $ageYears < 18
-                    ? '0'
-                    : '21',
+                $variable => $ageYears < 18 ? "0" : "21",
             ];
         }
 
@@ -1120,12 +1040,9 @@ final class FamiliarColombiaCorrectionService
          * Fecha de baciloscopia diagnóstica:
          * si se reportó sintomático respiratorio, no puede quedar No aplica.
          */
-        if (
-            in_array($type, ['WA', 'WASHINGTON'], true)
-            && $variable === 112
-        ) {
+        if (in_array($type, ["WA", "WASHINGTON"], true) && $variable === 112) {
             return [
-                112 => '1800-01-01',
+                112 => "1800-01-01",
             ];
         }
 
@@ -1135,32 +1052,21 @@ final class FamiliarColombiaCorrectionService
          * inequívoco.
          */
         if (
-            $type === 'CE'
-            && $variable === 30
-            && $ageYears !== null
-            && $ageYears < 2
+            $type === "CE" &&
+            $variable === 30 &&
+            $ageYears !== null &&
+            $ageYears < 2
         ) {
             $weight = (float) str_replace(
-                ',',
-                '.',
-                trim((string) ($record[30] ?? ''))
+                ",",
+                ".",
+                trim((string) ($record[30] ?? ""))
             );
 
-            foreach (
-                [
-                    $weight / 10,
-                    $weight / 100,
-                ]
-                as $candidate
-            ) {
-                if (
-                    $candidate >= 1
-                    && $candidate <= 15
-                ) {
+            foreach ([$weight / 10, $weight / 100] as $candidate) {
+                if ($candidate >= 1 && $candidate <= 15) {
                     return [
-                        30 => $this->formatNumber(
-                            $candidate
-                        ),
+                        30 => $this->formatNumber($candidate),
                     ];
                 }
             }
@@ -1173,25 +1079,19 @@ final class FamiliarColombiaCorrectionService
          * No se inventa un resultado clínico; se usa el comodín de
          * no realización.
          */
-        if (
-            $type === 'CE'
-            && $variable === 87
-        ) {
+        if ($type === "CE" && $variable === 87) {
             return [
-                87 => '1800-01-01',
+                87 => "1800-01-01",
             ];
         }
 
         /*
          * Calidad de la muestra sin resultado de citología.
          */
-        if (
-            $type === 'CE'
-            && $variable === 89
-        ) {
+        if ($type === "CE" && $variable === 89) {
             return [
-                88 => '21',
-                89 => '999',
+                88 => "21",
+                89 => "999",
             ];
         }
 
@@ -1207,12 +1107,9 @@ final class FamiliarColombiaCorrectionService
          * Variable 103: cualquier error CE en esta columna se corrige
          * al comodín de fecha permitida 1800-01-01.
          */
-        if (
-            $type === 'CE'
-            && $variable === 103
-        ) {
+        if ($type === "CE" && $variable === 103) {
             return [
-                103 => '1800-01-01',
+                103 => "1800-01-01",
             ];
         }
 
@@ -1221,28 +1118,15 @@ final class FamiliarColombiaCorrectionService
          * cualquier advertencia WA se resuelve como un bloque según
          * la edad a la fecha de corte.
          */
-        if (
-            $type === 'WA'
-            && in_array(
-                $variable,
-                [53, 54, 55],
-                true
-            )
-        ) {
-            $ageMonths = $this->ageMonths(
-                $record,
-                $cutoffDate
-            );
+        if ($type === "WA" && in_array($variable, [53, 54, 55], true)) {
+            $ageMonths = $this->ageMonths($record, $cutoffDate);
 
             if ($ageMonths === null) {
                 /*
                  * Respaldo usando años cuando la edad en meses no
                  * pueda calcularse.
                  */
-                $ageYears = $this->ageYears(
-                    $record,
-                    $cutoffDate
-                );
+                $ageYears = $this->ageYears($record, $cutoffDate);
 
                 if ($ageYears === null) {
                     return null;
@@ -1255,14 +1139,11 @@ final class FamiliarColombiaCorrectionService
              * Menor de 10 años o con 60 años cumplidos:
              * planificación familiar no aplica.
              */
-            if (
-                $ageMonths < 120
-                || $ageMonths >= 720
-            ) {
+            if ($ageMonths < 120 || $ageMonths >= 720) {
                 return [
-                    53 => '1845-01-01',
-                    54 => '0',
-                    55 => '1845-01-01',
+                    53 => "1845-01-01",
+                    54 => "0",
+                    55 => "1845-01-01",
                 ];
             }
 
@@ -1271,25 +1152,21 @@ final class FamiliarColombiaCorrectionService
              * aplica, pero no realizado/sin dato.
              */
             return [
-                53 => $this->isRealDate(
-                    (string) ($record[53] ?? '')
-                )
+                53 => $this->isRealDate((string) ($record[53] ?? ""))
                     ? (string) $record[53]
-                    : '1800-01-01',
+                    : "1800-01-01",
 
                 54 => in_array(
-                    trim((string) ($record[54] ?? '')),
-                    ['', '0'],
+                    trim((string) ($record[54] ?? "")),
+                    ["", "0"],
                     true
                 )
-                    ? '21'
+                    ? "21"
                     : (string) $record[54],
 
-                55 => $this->isRealDate(
-                    (string) ($record[55] ?? '')
-                )
+                55 => $this->isRealDate((string) ($record[55] ?? ""))
                     ? (string) $record[55]
-                    : '1800-01-01',
+                    : "1800-01-01",
             ];
         }
 
@@ -1303,30 +1180,16 @@ final class FamiliarColombiaCorrectionService
          * de que la columna reportada sea la 53.
          */
         if (
-            in_array($variable, [53, 54, 55], true)
-            && (
+            in_array($variable, [53, 54, 55], true) &&
+            (str_contains($description, "planificacion familiar primera vez") ||
+                str_contains($description, "suministro de metodo") ||
+                str_contains($description, "fecha suministro de metodo") ||
                 str_contains(
                     $description,
-                    'planificacion familiar primera vez'
-                )
-                || str_contains(
-                    $description,
-                    'suministro de metodo'
-                )
-                || str_contains(
-                    $description,
-                    'fecha suministro de metodo'
-                )
-                || str_contains(
-                    $description,
-                    'mayor o igual de 10 anos y menor de 60 anos'
-                )
-            )
+                    "mayor o igual de 10 anos y menor de 60 anos"
+                ))
         ) {
-            $ageMonths = $this->ageMonths(
-                $record,
-                $cutoffDate
-            );
+            $ageMonths = $this->ageMonths($record, $cutoffDate);
 
             if ($ageMonths === null) {
                 return null;
@@ -1336,14 +1199,11 @@ final class FamiliarColombiaCorrectionService
              * Menor de 10 años o con 60 años cumplidos:
              * las tres variables deben quedar como NO APLICA.
              */
-            if (
-                $ageMonths < 120
-                || $ageMonths >= 720
-            ) {
+            if ($ageMonths < 120 || $ageMonths >= 720) {
                 return [
-                    53 => '1845-01-01',
-                    54 => '0',
-                    55 => '1845-01-01',
+                    53 => "1845-01-01",
+                    54 => "0",
+                    55 => "1845-01-01",
                 ];
             }
 
@@ -1353,25 +1213,21 @@ final class FamiliarColombiaCorrectionService
              * inconsistentes se llevan al patrón de aplica-no-realizado.
              */
             return [
-                53 => $this->isRealDate(
-                    (string) ($record[53] ?? '')
-                )
+                53 => $this->isRealDate((string) ($record[53] ?? ""))
                     ? (string) $record[53]
-                    : '1800-01-01',
+                    : "1800-01-01",
 
                 54 => in_array(
-                    trim((string) ($record[54] ?? '')),
-                    ['', '0'],
+                    trim((string) ($record[54] ?? "")),
+                    ["", "0"],
                     true
                 )
-                    ? '21'
+                    ? "21"
                     : (string) $record[54],
 
-                55 => $this->isRealDate(
-                    (string) ($record[55] ?? '')
-                )
+                55 => $this->isRealDate((string) ($record[55] ?? ""))
                     ? (string) $record[55]
-                    : '1800-01-01',
+                    : "1800-01-01",
             ];
         }
 
@@ -1380,14 +1236,11 @@ final class FamiliarColombiaCorrectionService
          * al comodín permitido de no realización.
          */
         if (
-            $variable === 103
-            && str_contains(
-                $description,
-                'fecha registrada no es valida'
-            )
+            $variable === 103 &&
+            str_contains($description, "fecha registrada no es valida")
         ) {
             return [
-                103 => '1800-01-01',
+                103 => "1800-01-01",
             ];
         }
 
@@ -1406,22 +1259,14 @@ final class FamiliarColombiaCorrectionService
          * [10, 60) el bloque completo debe quedar como NO APLICA.
          */
         if (
-            $variable === 53
-            && (
+            $variable === 53 &&
+            (str_contains($description, "planificacion familiar primera vez") ||
                 str_contains(
                     $description,
-                    'planificacion familiar primera vez'
-                )
-                || str_contains(
-                    $description,
-                    'mayor o igual de 10 anos y menor de 60 anos'
-                )
-            )
+                    "mayor o igual de 10 anos y menor de 60 anos"
+                ))
         ) {
-            $ageMonths = $this->ageMonths(
-                $record,
-                $cutoffDate
-            );
+            $ageMonths = $this->ageMonths($record, $cutoffDate);
 
             if ($ageMonths === null) {
                 return null;
@@ -1431,14 +1276,11 @@ final class FamiliarColombiaCorrectionService
              * Menor de 10 años o con 60 años cumplidos:
              * no aplica planificación familiar.
              */
-            if (
-                $ageMonths < 120
-                || $ageMonths >= 720
-            ) {
+            if ($ageMonths < 120 || $ageMonths >= 720) {
                 return [
-                    53 => '1845-01-01',
-                    54 => '0',
-                    55 => '1845-01-01',
+                    53 => "1845-01-01",
+                    54 => "0",
+                    55 => "1845-01-01",
                 ];
             }
 
@@ -1449,25 +1291,21 @@ final class FamiliarColombiaCorrectionService
              * suministro para mantener consistente el bloque.
              */
             return [
-                53 => $this->isRealDate(
-                    (string) ($record[53] ?? '')
-                )
+                53 => $this->isRealDate((string) ($record[53] ?? ""))
                     ? (string) $record[53]
-                    : '1800-01-01',
+                    : "1800-01-01",
 
                 54 => in_array(
-                    trim((string) ($record[54] ?? '')),
-                    ['', '0'],
+                    trim((string) ($record[54] ?? "")),
+                    ["", "0"],
                     true
                 )
-                    ? '21'
+                    ? "21"
                     : (string) $record[54],
 
-                55 => $this->isRealDate(
-                    (string) ($record[55] ?? '')
-                )
+                55 => $this->isRealDate((string) ($record[55] ?? ""))
                     ? (string) $record[55]
-                    : '1800-01-01',
+                    : "1800-01-01",
             ];
         }
 
@@ -1483,37 +1321,34 @@ final class FamiliarColombiaCorrectionService
          */
         if (
             $this->isDateAfterCutoff(
-                (string) ($record[$variable] ?? ''),
+                (string) ($record[$variable] ?? ""),
                 $cutoffDate
             )
         ) {
             if ($variable === 53) {
-                $ageMonths = $this->ageMonths(
-                    $record,
-                    $cutoffDate
-                );
+                $ageMonths = $this->ageMonths($record, $cutoffDate);
 
                 if (
-                    $ageMonths !== null
-                    && $ageMonths >= 120
-                    && $ageMonths < 720
+                    $ageMonths !== null &&
+                    $ageMonths >= 120 &&
+                    $ageMonths < 720
                 ) {
                     return [
-                        53 => '1800-01-01',
-                        54 => '21',
-                        55 => '1800-01-01',
+                        53 => "1800-01-01",
+                        54 => "21",
+                        55 => "1800-01-01",
                     ];
                 }
 
                 return [
-                    53 => '1845-01-01',
-                    54 => '0',
-                    55 => '1845-01-01',
+                    53 => "1845-01-01",
+                    54 => "0",
+                    55 => "1845-01-01",
                 ];
             }
 
             return [
-                $variable => '1800-01-01',
+                $variable => "1800-01-01",
             ];
         }
 
@@ -1524,39 +1359,31 @@ final class FamiliarColombiaCorrectionService
          * columnas relacionadas y valores especiales.
          */
 
-        if (
-            str_contains(
-                $description,
-                'fecha registrada no es valida'
-            )
-        ) {
+        if (str_contains($description, "fecha registrada no es valida")) {
             /*
              * Variable 53 pertenece al bloque de planificación familiar.
              * Si la persona está dentro del rango 10-59 años, se usa el
              * patrón "aplica, pero no realizado".
              */
             if ($variable === 53) {
-                $ageMonths = $this->ageMonths(
-                    $record,
-                    $cutoffDate
-                );
+                $ageMonths = $this->ageMonths($record, $cutoffDate);
 
                 if (
-                    $ageMonths !== null
-                    && $ageMonths >= 120
-                    && $ageMonths < 720
+                    $ageMonths !== null &&
+                    $ageMonths >= 120 &&
+                    $ageMonths < 720
                 ) {
                     return [
-                        53 => '1800-01-01',
-                        54 => '21',
-                        55 => '1800-01-01',
+                        53 => "1800-01-01",
+                        54 => "21",
+                        55 => "1800-01-01",
                     ];
                 }
 
                 return [
-                    53 => '1845-01-01',
-                    54 => '0',
-                    55 => '1845-01-01',
+                    53 => "1845-01-01",
+                    54 => "0",
+                    55 => "1845-01-01",
                 ];
             }
 
@@ -1565,18 +1392,15 @@ final class FamiliarColombiaCorrectionService
              * permitido de no realización.
              */
             return [
-                $variable => '1800-01-01',
+                $variable => "1800-01-01",
             ];
         }
 
         if (
-            str_contains($description, 'planificacion familiar')
-            || str_contains($description, 'suministro de metodo')
+            str_contains($description, "planificacion familiar") ||
+            str_contains($description, "suministro de metodo")
         ) {
-            $ageMonths = $this->ageMonths(
-                $record,
-                $cutoffDate
-            );
+            $ageMonths = $this->ageMonths($record, $cutoffDate);
 
             if ($ageMonths === null) {
                 return null;
@@ -1586,14 +1410,11 @@ final class FamiliarColombiaCorrectionService
              * Fuera del rango de 10 a 59 años:
              * no aplica el bloque completo.
              */
-            if (
-                $ageMonths < 120
-                || $ageMonths >= 720
-            ) {
+            if ($ageMonths < 120 || $ageMonths >= 720) {
                 return [
-                    53 => '1845-01-01',
-                    54 => '0',
-                    55 => '1845-01-01',
+                    53 => "1845-01-01",
+                    54 => "0",
+                    55 => "1845-01-01",
                 ];
             }
 
@@ -1602,39 +1423,32 @@ final class FamiliarColombiaCorrectionService
              * aplica, pero no fue realizado.
              */
             return [
-                53 => $this->isRealDate(
-                    (string) ($record[53] ?? '')
-                )
+                53 => $this->isRealDate((string) ($record[53] ?? ""))
                     ? (string) $record[53]
-                    : '1800-01-01',
+                    : "1800-01-01",
 
                 54 => in_array(
-                    trim((string) ($record[54] ?? '')),
-                    ['', '0'],
+                    trim((string) ($record[54] ?? "")),
+                    ["", "0"],
                     true
                 )
-                    ? '21'
+                    ? "21"
                     : (string) $record[54],
 
-                55 => $this->isRealDate(
-                    (string) ($record[55] ?? '')
-                )
+                55 => $this->isRealDate((string) ($record[55] ?? ""))
                     ? (string) $record[55]
-                    : '1800-01-01',
+                    : "1800-01-01",
             ];
         }
 
         if (
-            $variable === 30
-            && str_contains(
-                $description,
-                'peso de los adolescentes'
-            )
+            $variable === 30 &&
+            str_contains($description, "peso de los adolescentes")
         ) {
             $weight = (float) str_replace(
-                ',',
-                '.',
-                trim((string) ($record[30] ?? ''))
+                ",",
+                ".",
+                trim((string) ($record[30] ?? ""))
             );
 
             /*
@@ -1643,11 +1457,11 @@ final class FamiliarColombiaCorrectionService
              * contra la fuente clínica original.
              */
             if ($weight > 80) {
-                return [30 => '80'];
+                return [30 => "80"];
             }
 
             if ($weight < 30) {
-                return [30 => '30'];
+                return [30 => "30"];
             }
 
             return [30 => $this->formatNumber($weight)];
@@ -1666,13 +1480,11 @@ final class FamiliarColombiaCorrectionService
          * - Fecha 1845-01-01: no aplica -> resultado 0.
          */
         if (
-            $variable === 98
-            || $variable === 118
-            || str_contains($description, 'triglicer')
+            $variable === 98 ||
+            $variable === 118 ||
+            str_contains($description, "triglicer")
         ) {
-            return $this->normalizeTriglyceridesForFamiliar(
-                $record
-            );
+            return $this->normalizeTriglyceridesForFamiliar($record);
         }
 
         /*
@@ -1680,8 +1492,8 @@ final class FamiliarColombiaCorrectionService
          * porque las variables 53, 54 y 55 se corrigen como un bloque.
          */
         if (
-            str_contains($description, 'planificacion familiar')
-            || str_contains($description, 'suministro de metodo')
+            str_contains($description, "planificacion familiar") ||
+            str_contains($description, "suministro de metodo")
         ) {
             return $this->resolveSupplementalRule(
                 record: $record,
@@ -1695,12 +1507,7 @@ final class FamiliarColombiaCorrectionService
          * Las fechas inválidas también se resuelven antes del motor
          * general para evitar que otra regla intercepte el error.
          */
-        if (
-            str_contains(
-                $description,
-                'fecha registrada no es valida'
-            )
-        ) {
+        if (str_contains($description, "fecha registrada no es valida")) {
             return $this->resolveSupplementalRule(
                 record: $record,
                 variable: $variable,
@@ -1716,27 +1523,19 @@ final class FamiliarColombiaCorrectionService
          * edad a la fecha de corte.
          */
         if (
-            in_array($variable, [43, 44, 45, 46], true)
-            || str_contains(
-                $description,
-                'escala abreviada de desarrollo'
-            )
+            in_array($variable, [43, 44, 45, 46], true) ||
+            str_contains($description, "escala abreviada de desarrollo")
         ) {
-            return $this->normalizeDevelopmentScaleForFamiliar(
-                $record
-            );
+            return $this->normalizeDevelopmentScaleForFamiliar($record);
         }
 
-        foreach (
-            $this->ruleAdapter->adapt($error)
-            as $engineError
-        ) {
+        foreach ($this->ruleAdapter->adapt($error) as $engineError) {
             $decision = $this->ruleEngine->resolve(
                 $recordContext,
                 $engineError
             );
 
-            if ($decision->status !== 'automatic') {
+            if ($decision->status !== "automatic") {
                 continue;
             }
 
@@ -1755,8 +1554,7 @@ final class FamiliarColombiaCorrectionService
                 /*
                  * Una regla posterior debe ver el valor recién deducido.
                  */
-                $recordContext['variables'][$targetVariable] =
-                    $targetValue;
+                $recordContext["variables"][$targetVariable] = $targetValue;
             }
         }
 
@@ -1784,10 +1582,9 @@ final class FamiliarColombiaCorrectionService
          * Familiar de Colombia cuando realmente cambia el campo.
          */
         if (
-            $type === 'CD'
-            && $newValue !== null
-            && (string) $newValue
-                !== (string) ($record[$variable] ?? '')
+            $type === "CD" &&
+            $newValue !== null &&
+            (string) $newValue !== (string) ($record[$variable] ?? "")
         ) {
             return [
                 $variable => (string) $newValue,
@@ -1807,49 +1604,35 @@ final class FamiliarColombiaCorrectionService
         string $cutoffDate
     ): ?array {
         $description = $this->asciiLower(
-            (string) ($error['description'] ?? '')
+            (string) ($error["description"] ?? "")
         );
 
-        $ageYears = $this->ageYears(
-            $record,
-            $cutoffDate
-        );
+        $ageYears = $this->ageYears($record, $cutoffDate);
 
-        $ageMonths = $this->ageMonths(
-            $record,
-            $cutoffDate
-        );
+        $ageMonths = $this->ageMonths($record, $cutoffDate);
 
         /*
          * Planificación familiar: aplica desde los 10 años
          * hasta antes de cumplir 60.
          */
         if (
-            str_contains($description, 'planificacion familiar')
-            || str_contains($description, 'suministro de metodo')
+            str_contains($description, "planificacion familiar") ||
+            str_contains($description, "suministro de metodo")
         ) {
             if (
-                $ageMonths !== null
-                && (
-                    $ageMonths < 120
-                    || $ageMonths >= 720
-                )
+                $ageMonths !== null &&
+                ($ageMonths < 120 || $ageMonths >= 720)
             ) {
                 return [
-                    53 => '1845-01-01',
-                    54 => '0',
-                    55 => '1845-01-01',
+                    53 => "1845-01-01",
+                    54 => "0",
+                    55 => "1845-01-01",
                 ];
             }
 
-            if (
-                str_contains(
-                    $description,
-                    'fecha registrada no es valida'
-                )
-            ) {
+            if (str_contains($description, "fecha registrada no es valida")) {
                 return [
-                    53 => '1800-01-01',
+                    53 => "1800-01-01",
                 ];
             }
 
@@ -1859,14 +1642,9 @@ final class FamiliarColombiaCorrectionService
         /*
          * Fecha clínica fuera de rango.
          */
-        if (
-            str_contains(
-                $description,
-                'fecha registrada no es valida'
-            )
-        ) {
+        if (str_contains($description, "fecha registrada no es valida")) {
             return [
-                $variable => '1800-01-01',
+                $variable => "1800-01-01",
             ];
         }
 
@@ -1887,17 +1665,11 @@ final class FamiliarColombiaCorrectionService
     /**
      * @return array<int, mixed>|null
      */
-    private function normalizeWeightByAge(
-        array $record,
-        ?int $ageYears
-    ): ?array {
-        $raw = str_replace(
-            ',',
-            '.',
-            trim((string) ($record[30] ?? ''))
-        );
+    private function normalizeWeightByAge(array $record, ?int $ageYears): ?array
+    {
+        $raw = str_replace(",", ".", trim((string) ($record[30] ?? "")));
 
-        if (! is_numeric($raw) || $ageYears === null) {
+        if (!is_numeric($raw) || $ageYears === null) {
             return null;
         }
 
@@ -1934,23 +1706,22 @@ final class FamiliarColombiaCorrectionService
         return null;
     }
 
-    private function normalizeRectalExamResult(
-        string $value
-    ): ?string {
+    private function normalizeRectalExamResult(string $value): ?string
+    {
         $normalized = $this->asciiLower($value);
 
-        if ($normalized === '') {
+        if ($normalized === "") {
             return null;
         }
 
         $abnormalIndicators = [
-            'anormal',
-            'nodulo',
-            'indurad',
-            'irregular',
-            'asimetr',
-            'dolor',
-            'sospech',
+            "anormal",
+            "nodulo",
+            "indurad",
+            "irregular",
+            "asimetr",
+            "dolor",
+            "sospech",
         ];
 
         foreach ($abnormalIndicators as $indicator) {
@@ -1961,66 +1732,48 @@ final class FamiliarColombiaCorrectionService
                  */
                 if (
                     preg_match(
-                        '/\bsin\s+(nodul|areas?\s+indurad|dolor)/',
+                        "/\bsin\s+(nodul|areas?\s+indurad|dolor)/",
                         $normalized
                     ) === 1
                 ) {
                     continue;
                 }
 
-                return '4';
+                return "4";
             }
         }
 
         if (
-            str_contains($normalized, 'normal')
-            || str_contains($normalized, 'acorde a la edad')
-            || (
-                str_contains($normalized, 'simetric')
-                && str_contains($normalized, 'bordes regulares')
-                && str_contains($normalized, 'sin nodul')
-            )
+            str_contains($normalized, "normal") ||
+            str_contains($normalized, "acorde a la edad") ||
+            (str_contains($normalized, "simetric") &&
+                str_contains($normalized, "bordes regulares") &&
+                str_contains($normalized, "sin nodul"))
         ) {
-            return '5';
+            return "5";
         }
 
         return null;
     }
 
-    private function normalizeHivResult(
-        string $value
-    ): ?string {
+    private function normalizeHivResult(string $value): ?string
+    {
         $normalized = $this->asciiLower($value);
 
         return match ($normalized) {
-            'negativo',
-            'no reactivo',
-            'no-reactivo' => '5',
-
-            'positivo',
-            'reactivo' => '4',
-
-            'no aplica' => '0',
-
-            'sin dato',
-            'no evaluado',
-            'riesgo no evaluado' => '21',
-
+            "negativo", "no reactivo", "no-reactivo" => "5",
+            "positivo", "reactivo" => "4",
+            "no aplica" => "0",
+            "sin dato", "no evaluado", "riesgo no evaluado" => "21",
             default => null,
         };
     }
 
     private function formatNumber(float $value): string
     {
-        $formatted = rtrim(
-            rtrim(
-                number_format($value, 2, '.', ''),
-                '0'
-            ),
-            '.'
-        );
+        $formatted = rtrim(rtrim(number_format($value, 2, ".", ""), "0"), ".");
 
-        return $formatted === '' ? '0' : $formatted;
+        return $formatted === "" ? "0" : $formatted;
     }
 
     /**
@@ -2030,25 +1783,19 @@ final class FamiliarColombiaCorrectionService
         array $record,
         string $cutoffDate
     ): array {
-        $years = $this->ageYears(
-            $record,
-            $cutoffDate
-        );
+        $years = $this->ageYears($record, $cutoffDate);
 
-        $months = $this->ageMonths(
-            $record,
-            $cutoffDate
-        );
+        $months = $this->ageMonths($record, $cutoffDate);
 
         return [
-            'variables' => $record,
-            'record_number' => $record[1] ?? null,
-            'cutoff_date' => $cutoffDate,
-            'report_cutoff_date' => $cutoffDate,
-            'fecha_corte' => $cutoffDate,
-            'age' => [
-                'years' => $years,
-                'months' => $months,
+            "variables" => $record,
+            "record_number" => $record[1] ?? null,
+            "cutoff_date" => $cutoffDate,
+            "report_cutoff_date" => $cutoffDate,
+            "fecha_corte" => $cutoffDate,
+            "age" => [
+                "years" => $years,
+                "months" => $months,
             ],
         ];
     }
@@ -2057,17 +1804,14 @@ final class FamiliarColombiaCorrectionService
      * @param array<int, array<int, string>> $records
      * @return array<string, int>
      */
-    private function indexRecordsByConsecutive(
-        array $records
-    ): array {
+    private function indexRecordsByConsecutive(array $records): array
+    {
         $indexes = [];
 
         foreach ($records as $index => $record) {
-            $consecutive = trim(
-                (string) ($record[1] ?? '')
-            );
+            $consecutive = trim((string) ($record[1] ?? ""));
 
-            if ($consecutive !== '') {
+            if ($consecutive !== "") {
                 $indexes[$consecutive] = $index;
             }
         }
@@ -2075,34 +1819,23 @@ final class FamiliarColombiaCorrectionService
         return $indexes;
     }
 
-    private function ageYears(
-        array $record,
-        string $cutoffDate
-    ): ?int {
-        $birthDate = trim(
-            (string) ($record[9] ?? '')
-        );
+    private function ageYears(array $record, string $cutoffDate): ?int
+    {
+        $birthDate = trim((string) ($record[9] ?? ""));
 
-        if ($birthDate === '' || $cutoffDate === '') {
+        if ($birthDate === "" || $cutoffDate === "") {
             return null;
         }
 
         try {
-            $birth = \DateTimeImmutable::createFromFormat(
-                '!Y-m-d',
-                $birthDate
-            );
+            $birth = \DateTimeImmutable::createFromFormat("!Y-m-d", $birthDate);
 
             $cutoff = \DateTimeImmutable::createFromFormat(
-                '!Y-m-d',
+                "!Y-m-d",
                 $cutoffDate
             );
 
-            if (
-                $birth === false
-                || $cutoff === false
-                || $birth > $cutoff
-            ) {
+            if ($birth === false || $cutoff === false || $birth > $cutoff) {
                 return null;
             }
 
@@ -2112,41 +1845,29 @@ final class FamiliarColombiaCorrectionService
         }
     }
 
-    private function ageMonths(
-        array $record,
-        string $cutoffDate
-    ): ?int {
-        $birthDate = trim(
-            (string) ($record[9] ?? '')
-        );
+    private function ageMonths(array $record, string $cutoffDate): ?int
+    {
+        $birthDate = trim((string) ($record[9] ?? ""));
 
-        if ($birthDate === '' || $cutoffDate === '') {
+        if ($birthDate === "" || $cutoffDate === "") {
             return null;
         }
 
         try {
-            $birth = \DateTimeImmutable::createFromFormat(
-                '!Y-m-d',
-                $birthDate
-            );
+            $birth = \DateTimeImmutable::createFromFormat("!Y-m-d", $birthDate);
 
             $cutoff = \DateTimeImmutable::createFromFormat(
-                '!Y-m-d',
+                "!Y-m-d",
                 $cutoffDate
             );
 
-            if (
-                $birth === false
-                || $cutoff === false
-                || $birth > $cutoff
-            ) {
+            if ($birth === false || $cutoff === false || $birth > $cutoff) {
                 return null;
             }
 
             $difference = $birth->diff($cutoff);
 
-            return ($difference->y * 12)
-                + $difference->m;
+            return $difference->y * 12 + $difference->m;
         } catch (\Throwable) {
             return null;
         }
@@ -2163,26 +1884,24 @@ final class FamiliarColombiaCorrectionService
      *
      * @return array<int, string>|null
      */
-    private function isDateAfterCutoff(
-        string $value,
-        string $cutoffDate
-    ): bool {
+    private function isDateAfterCutoff(string $value, string $cutoffDate): bool
+    {
         $value = trim($value);
         $cutoffDate = trim($cutoffDate);
 
         if (
-            $value === ''
-            || $cutoffDate === ''
-            || in_array(
+            $value === "" ||
+            $cutoffDate === "" ||
+            in_array(
                 $value,
                 [
-                    '1800-01-01',
-                    '1805-01-01',
-                    '1810-01-01',
-                    '1825-01-01',
-                    '1830-01-01',
-                    '1835-01-01',
-                    '1845-01-01',
+                    "1800-01-01",
+                    "1805-01-01",
+                    "1810-01-01",
+                    "1825-01-01",
+                    "1830-01-01",
+                    "1835-01-01",
+                    "1845-01-01",
                 ],
                 true
             )
@@ -2191,21 +1910,18 @@ final class FamiliarColombiaCorrectionService
         }
 
         try {
-            $date = \DateTimeImmutable::createFromFormat(
-                '!Y-m-d',
-                $value
-            );
+            $date = \DateTimeImmutable::createFromFormat("!Y-m-d", $value);
 
             $cutoff = \DateTimeImmutable::createFromFormat(
-                '!Y-m-d',
+                "!Y-m-d",
                 $cutoffDate
             );
 
             if (
-                $date === false
-                || $cutoff === false
-                || $date->format('Y-m-d') !== $value
-                || $cutoff->format('Y-m-d') !== $cutoffDate
+                $date === false ||
+                $cutoff === false ||
+                $date->format("Y-m-d") !== $value ||
+                $cutoff->format("Y-m-d") !== $cutoffDate
             ) {
                 return false;
             }
@@ -2216,33 +1932,21 @@ final class FamiliarColombiaCorrectionService
         }
     }
 
-    private function isRealDate(
-        string $value
-    ): bool {
+    private function isRealDate(string $value): bool
+    {
         $value = trim($value);
 
         if (
-            $value === ''
-            || in_array(
-                $value,
-                [
-                    '1800-01-01',
-                    '1845-01-01',
-                ],
-                true
-            )
+            $value === "" ||
+            in_array($value, ["1800-01-01", "1845-01-01"], true)
         ) {
             return false;
         }
 
         try {
-            $date = \DateTimeImmutable::createFromFormat(
-                '!Y-m-d',
-                $value
-            );
+            $date = \DateTimeImmutable::createFromFormat("!Y-m-d", $value);
 
-            return $date !== false
-                && $date->format('Y-m-d') === $value;
+            return $date !== false && $date->format("Y-m-d") === $value;
         } catch (\Throwable) {
             return false;
         }
@@ -2256,36 +1960,28 @@ final class FamiliarColombiaCorrectionService
      *
      * @return array<int, string>|null
      */
-    private function normalizeTriglyceridesForFamiliar(
-        array $record
-    ): ?array {
-        $date = trim(
-            (string) ($record[118] ?? '')
-        );
+    private function normalizeTriglyceridesForFamiliar(array $record): ?array
+    {
+        $date = trim((string) ($record[118] ?? ""));
 
-        $result = trim(
-            (string) ($record[98] ?? '')
-        );
+        $result = trim((string) ($record[98] ?? ""));
 
         $specialDatesFor998 = [
-            '1800-01-01',
-            '1805-01-01',
-            '1810-01-01',
-            '1825-01-01',
-            '1830-01-01',
-            '1835-01-01',
+            "1800-01-01",
+            "1805-01-01",
+            "1810-01-01",
+            "1825-01-01",
+            "1830-01-01",
+            "1835-01-01",
         ];
 
         /*
          * No aplica.
          */
-        if (
-            $date === '1845-01-01'
-            || $result === '0'
-        ) {
+        if ($date === "1845-01-01" || $result === "0") {
             return [
-                118 => '1845-01-01',
-                98 => '0',
+                118 => "1845-01-01",
+                98 => "0",
             ];
         }
 
@@ -2295,33 +1991,23 @@ final class FamiliarColombiaCorrectionService
          * real pero resultado 998, no existe un resultado clínico que
          * podamos inventar; por eso se corrige la fecha a 1800-01-01.
          */
-        if ($result === '998') {
+        if ($result === "998") {
             return [
-                118 => in_array(
-                    $date,
-                    $specialDatesFor998,
-                    true
-                )
+                118 => in_array($date, $specialDatesFor998, true)
                     ? $date
-                    : '1800-01-01',
+                    : "1800-01-01",
 
-                98 => '998',
+                98 => "998",
             ];
         }
 
         /*
          * Una fecha especial de no realización exige resultado 998.
          */
-        if (
-            in_array(
-                $date,
-                $specialDatesFor998,
-                true
-            )
-        ) {
+        if (in_array($date, $specialDatesFor998, true)) {
             return [
                 118 => $date,
-                98 => '998',
+                98 => "998",
             ];
         }
 
@@ -2330,102 +2016,85 @@ final class FamiliarColombiaCorrectionService
          * positivo distinto de 998.
          */
         if ($this->isRealDate($date)) {
-            $normalizedResult = str_replace(
-                ',',
-                '.',
-                $result
-            );
+            $normalizedResult = str_replace(",", ".", $result);
 
             if (
-                $normalizedResult === ''
-                || ! is_numeric($normalizedResult)
-                || (float) $normalizedResult <= 0
+                $normalizedResult === "" ||
+                !is_numeric($normalizedResult) ||
+                (float) $normalizedResult <= 0
             ) {
                 /*
                  * No se inventa un valor clínico. Se transforma el par
                  * al patrón permitido de no realización.
                  */
                 return [
-                    118 => '1800-01-01',
-                    98 => '998',
+                    118 => "1800-01-01",
+                    98 => "998",
                 ];
             }
 
             return [
                 118 => $date,
-                98 => $this->normalizeDecimal(
-                    $normalizedResult
-                ),
+                98 => $this->normalizeDecimal($normalizedResult),
             ];
         }
 
         return null;
     }
 
-    private function normalizeDevelopmentScaleForFamiliar(
-        array $record
-    ): ?array {
-        $birthDate = trim(
-            (string) ($record[9] ?? '')
-        );
+    private function normalizeDevelopmentScaleForFamiliar(array $record): ?array
+    {
+        $birthDate = trim((string) ($record[9] ?? ""));
 
-        $consultationDate = trim(
-            (string) ($record[52] ?? '')
-        );
+        $consultationDate = trim((string) ($record[52] ?? ""));
 
-        if ($birthDate === '') {
+        if ($birthDate === "") {
             return null;
         }
 
         /*
          * La consulta aplica, pero no se realizó.
          */
-        if ($consultationDate === '1800-01-01') {
+        if ($consultationDate === "1800-01-01") {
             return [
-                43 => '21',
-                44 => '21',
-                45 => '21',
-                46 => '21',
+                43 => "21",
+                44 => "21",
+                45 => "21",
+                46 => "21",
             ];
         }
 
         /*
          * La consulta no aplica.
          */
-        if ($consultationDate === '1845-01-01') {
+        if ($consultationDate === "1845-01-01") {
             return [
-                43 => '0',
-                44 => '0',
-                45 => '0',
-                46 => '0',
+                43 => "0",
+                44 => "0",
+                45 => "0",
+                46 => "0",
             ];
         }
 
         try {
-            $birth = \DateTimeImmutable::createFromFormat(
-                '!Y-m-d',
-                $birthDate
+            $birth = \DateTimeImmutable::createFromFormat("!Y-m-d", $birthDate);
+
+            $consultation = \DateTimeImmutable::createFromFormat(
+                "!Y-m-d",
+                $consultationDate
             );
 
-            $consultation =
-                \DateTimeImmutable::createFromFormat(
-                    '!Y-m-d',
-                    $consultationDate
-                );
-
             if (
-                $birth === false
-                || $consultation === false
-                || $birth > $consultation
-                || $birth->format('Y-m-d') !== $birthDate
-                || $consultation->format('Y-m-d')
-                    !== $consultationDate
+                $birth === false ||
+                $consultation === false ||
+                $birth > $consultation ||
+                $birth->format("Y-m-d") !== $birthDate ||
+                $consultation->format("Y-m-d") !== $consultationDate
             ) {
                 return null;
             }
 
-            $ageAtConsultation =
-                $birth->diff($consultation)->y;
+            $ageAtConsultation = $birth->diff($consultation)->y;
         } catch (\Throwable) {
             return null;
         }
@@ -2437,15 +2106,12 @@ final class FamiliarColombiaCorrectionService
          * Dejar 21 teniendo una fecha real genera advertencias WA,
          * por eso el bloque completo debe quedar en 5.
          */
-        if (
-            $ageAtConsultation >= 0
-            && $ageAtConsultation <= 7
-        ) {
+        if ($ageAtConsultation >= 0 && $ageAtConsultation <= 7) {
             return [
-                43 => '5',
-                44 => '5',
-                45 => '5',
-                46 => '5',
+                43 => "5",
+                44 => "5",
+                45 => "5",
+                46 => "5",
             ];
         }
 
@@ -2453,80 +2119,57 @@ final class FamiliarColombiaCorrectionService
          * Fuera del rango de 0 a 7 años no aplica.
          */
         return [
-            43 => '0',
-            44 => '0',
-            45 => '0',
-            46 => '0',
+            43 => "0",
+            44 => "0",
+            45 => "0",
+            46 => "0",
         ];
     }
 
     private function normalizeDecimal(string $value): string
     {
-        $value = str_replace(',', '.', trim($value));
+        $value = str_replace(",", ".", trim($value));
 
-        if ($value === '') {
-            return '0';
+        if ($value === "") {
+            return "0";
         }
 
-        if (! is_numeric($value)) {
+        if (!is_numeric($value)) {
             return $value;
         }
 
-        if (str_contains($value, '.')) {
-            $value = rtrim($value, '0');
-            $value = rtrim($value, '.');
+        if (str_contains($value, ".")) {
+            $value = rtrim($value, "0");
+            $value = rtrim($value, ".");
         }
 
-        return $value === '' || $value === '-0'
-            ? '0'
-            : $value;
+        return $value === "" || $value === "-0" ? "0" : $value;
     }
 
     private function repairMojibake(string $value): string
     {
-        if (
-            ! str_contains($value, 'Ã')
-            && ! str_contains($value, 'Â')
-        ) {
+        if (!str_contains($value, "Ã") && !str_contains($value, "Â")) {
             return trim($value);
         }
 
-        $repaired = @mb_convert_encoding(
-            $value,
-            'Windows-1252',
-            'UTF-8'
-        );
+        $repaired = @mb_convert_encoding($value, "Windows-1252", "UTF-8");
 
-        if (! is_string($repaired)) {
+        if (!is_string($repaired)) {
             return trim($value);
         }
 
-        return trim(
-            mb_convert_encoding(
-                $repaired,
-                'UTF-8',
-                'Windows-1252'
-            )
-        );
+        return trim(mb_convert_encoding($repaired, "UTF-8", "Windows-1252"));
     }
 
     private function decodeInput(string $raw): string
     {
-        $raw = preg_replace(
-            '/^\xEF\xBB\xBF/',
-            '',
-            $raw
-        ) ?? $raw;
+        $raw = preg_replace('/^\xEF\xBB\xBF/', "", $raw) ?? $raw;
 
-        if (mb_check_encoding($raw, 'UTF-8')) {
+        if (mb_check_encoding($raw, "UTF-8")) {
             return $raw;
         }
 
-        return mb_convert_encoding(
-            $raw,
-            'UTF-8',
-            'Windows-1252'
-        );
+        return mb_convert_encoding($raw, "UTF-8", "Windows-1252");
     }
 
     /**
@@ -2538,19 +2181,16 @@ final class FamiliarColombiaCorrectionService
         array $header,
         array $records
     ): void {
-        $lines = [
-            implode('|', $header),
-        ];
+        $lines = [implode("|", $header)];
 
         foreach ($records as $index => $record) {
-            $record[0] = '2';
+            $record[0] = "2";
             $record[1] = (string) ($index + 1);
 
             $lines[] = implode(
-                '|',
+                "|",
                 array_map(
-                    fn (mixed $value): string =>
-                        $this->cleanValue($value),
+                    fn(mixed $value): string => $this->cleanValue($value),
                     $record
                 )
             );
@@ -2558,15 +2198,11 @@ final class FamiliarColombiaCorrectionService
 
         $utf8 = implode("\r\n", $lines);
 
-        $ansi = mb_convert_encoding(
-            $utf8,
-            'Windows-1252',
-            'UTF-8'
-        );
+        $ansi = mb_convert_encoding($utf8, "Windows-1252", "UTF-8");
 
         if (file_put_contents($path, $ansi) === false) {
             throw new RuntimeException(
-                'No fue posible escribir el TXT ANSI corregido.'
+                "No fue posible escribir el TXT ANSI corregido."
             );
         }
     }
@@ -2580,21 +2216,20 @@ final class FamiliarColombiaCorrectionService
 
         $open = $zip->open(
             $zipPath,
-            ZipArchive::CREATE
-            | ZipArchive::OVERWRITE
+            ZipArchive::CREATE | ZipArchive::OVERWRITE
         );
 
         if ($open !== true) {
             throw new RuntimeException(
-                'No fue posible crear el ZIP corregido.'
+                "No fue posible crear el ZIP corregido."
             );
         }
 
         $zip->addFile($txtPath, $txtName);
 
-        if (! $zip->close()) {
+        if (!$zip->close()) {
             throw new RuntimeException(
-                'No fue posible finalizar el ZIP corregido.'
+                "No fue posible finalizar el ZIP corregido."
             );
         }
     }
@@ -2603,22 +2238,14 @@ final class FamiliarColombiaCorrectionService
     {
         $value = trim((string) $value);
 
-        return str_replace(
-            ["\r", "\n", '|'],
-            [' ', ' ', ' '],
-            $value
-        );
+        return str_replace(["\r", "\n", "|"], [" ", " ", " "], $value);
     }
 
     private function asciiLower(string $value): string
     {
-        $value = mb_strtolower($value, 'UTF-8');
+        $value = mb_strtolower($value, "UTF-8");
 
-        $ascii = iconv(
-            'UTF-8',
-            'ASCII//TRANSLIT//IGNORE',
-            $value
-        );
+        $ascii = iconv("UTF-8", "ASCII//TRANSLIT//IGNORE", $value);
 
         return is_string($ascii) ? $ascii : $value;
     }
@@ -2626,16 +2253,14 @@ final class FamiliarColombiaCorrectionService
     /**
      * @return array<string, mixed>
      */
-    private function unresolved(
-        array $error,
-        string $reason
-    ): array {
+    private function unresolved(array $error, string $reason): array
+    {
         return [
-            'record' => $error['record'] ?? null,
-            'variable' => $error['variable'] ?? null,
-            'type' => $error['type'] ?? null,
-            'description' => $error['description'] ?? '',
-            'reason' => $reason,
+            "record" => $error["record"] ?? null,
+            "variable" => $error["variable"] ?? null,
+            "type" => $error["type"] ?? null,
+            "description" => $error["description"] ?? "",
+            "reason" => $reason,
         ];
     }
 }

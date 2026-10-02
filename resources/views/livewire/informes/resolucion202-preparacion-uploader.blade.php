@@ -140,6 +140,37 @@
                     @enderror
                 </div>
 
+                @if ($destino === 'proteger')
+                    <div class="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-900 dark:bg-blue-950/20">
+                        <h2 class="font-bold text-blue-900 dark:text-blue-200">
+                            Datos para PROTEGER
+                        </h2>
+
+                        <div class="mt-4">
+                            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-400">
+                                NIT para el nombre del TXT
+                            </label>
+
+                            <input
+                                type="text"
+                                inputmode="numeric"
+                                maxlength="12"
+                                wire:model="nitProteger"
+                                placeholder="Ej. 900144397"
+                                class="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm dark:border-neutral-600 dark:bg-neutral-950"
+                            >
+
+                            <p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                                El archivo se generará como NIT_MMYYYY.txt. Escríbelo sin puntos ni guiones.
+                            </p>
+
+                            @error('nitProteger')
+                                <p class="mt-2 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+                @endif
+
                 @if ($destino === 'dusakawi')
                     <div class="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900 dark:bg-emerald-950/20">
                         <h2 class="font-bold text-emerald-900 dark:text-emerald-200">
