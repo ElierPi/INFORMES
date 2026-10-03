@@ -164,6 +164,38 @@ final class Informe202PreparationService
                 $normalized[1] = $expectedSequence;
             }
 
+            /*
+             * Proteger: el campo 22 recibe a veces una descripción
+             * narrativa del tacto rectal en lugar del código numérico.
+             * Se utiliza el campo 64 (fecha del tacto rectal) para no
+             * registrar una exploración normal como «no evaluada».
+             */
+            if ($destination === self::DESTINATION_PROTEGER) {
+                $tactoAnterior = $normalized[22];
+                $tactoNuevo = $this->protegerTactoRectalCode(
+                    $tactoAnterior,
+                    $normalized[64]
+                );
+
+                if ($tactoNuevo !== null && $tactoNuevo !== $tactoAnterior) {
+                    $normalized[22] = $tactoNuevo;
+
+                    $warnings[] = $this->warning(
+                        record: $index + 1,
+                        sourceLine: $sourceLine,
+                        variable: 22,
+                        value: $tactoAnterior,
+                        message: $tactoNuevo === '21'
+                            ? 'Se normalizó el texto del tacto rectal a 21 '
+                                . 'porque la fecha asociada está como sin dato (1800-01-01). '
+                                . 'Confirmar que el examen no fue evaluado.'
+                            : 'Se normalizó la descripción de próstata normal a código 5. '
+                                . 'Verificar que la fecha del tacto rectal (variable 64) '
+                                . 'corresponda a la exploración realizada.'
+                    );
+                }
+            }
+
             $normalizedRecords[] = $normalized;
         }
 
@@ -288,6 +320,17 @@ final class Informe202PreparationService
              */
             $values[0] = '2';
             $values[1] = (string) ($recordIndex + 1);
+
+            if ($destination === self::DESTINATION_PROTEGER) {
+                $tactoNuevo = $this->protegerTactoRectalCode(
+                    (string) ($values[22] ?? ''),
+                    (string) ($values[64] ?? '')
+                );
+
+                if ($tactoNuevo !== null) {
+                    $values[22] = $tactoNuevo;
+                }
+            }
 
             $lines[] = implode(
                 '|',
@@ -723,6 +766,50 @@ final class Informe202PreparationService
         }
 
         return $destination;
+    }
+
+    /**
+     * La fuente a veces escribe una descripción narrativa en el campo 22.
+     * Catálogo del propio proyecto: 5=próstata normal; 21=riesgo no evaluado.
+     *
+     * Solo se normaliza la descripción concreta del hallazgo normal.
+     * Una fecha real demuestra que hubo una evaluación: código 5.
+     * Si el reporte trae explícitamente la fecha sin dato (1800-01-01),
+     * se conserva el 21 solicitado, pero se muestra una advertencia en
+     * preparación porque el texto narrativo contradice ese estado.
+     * No se modifica la fecha ni se inventa el resultado de otro examen.
+     */
+    private function protegerTactoRectalCode(
+        mixed $result,
+        mixed $date
+    ): ?string {
+        $result = trim((string) $result);
+
+        if ($result === '') {
+            return null;
+        }
+
+        $text = mb_strtoupper($result, 'UTF-8');
+        $text = strtr($text, [
+            'Á' => 'A', 'É' => 'E', 'Í' => 'I',
+            'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U', 'Ñ' => 'N',
+        ]);
+        $text = preg_replace('/[^A-Z0-9]+/', ' ', $text) ?? $text;
+        $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+
+        // Firma semántica de la descripción compartida por la IPS.
+        if (
+            ! str_contains($text, 'PROSTATA DE TAMANO ACORDE A LA EDAD')
+            || ! str_contains($text, 'SIMETRICA')
+            || ! str_contains($text, 'SIN NODULOS')
+            || ! str_contains($text, 'SURCO MEDIO CONSERVADO')
+        ) {
+            return null;
+        }
+
+        return trim((string) $date) === '1800-01-01'
+            ? '21'
+            : '5';
     }
 
     private function normalizeValue(
