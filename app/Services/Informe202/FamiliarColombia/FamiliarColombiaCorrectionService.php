@@ -345,6 +345,21 @@ final class FamiliarColombiaCorrectionService
         $newValue = $error["new_value"] ?? null;
 
         /*
+         * Familiar de Colombia - error CE, variable 8:
+         * "8.Segundo nombre del usuario, longitud no corresponde".
+         * Solo ante este rechazo se reemplaza el segundo nombre por NA.
+         * No se aplica de manera global ni altera otros nombres.
+         */
+        if (
+            $type === "CE" &&
+            $variable === 8 &&
+            str_contains($description, "segundo nombre") &&
+            str_contains($description, "longitud")
+        ) {
+            return [8 => "NA"];
+        }
+
+        /*
          * CIERRE DE REGLAS PENDIENTES - SIGIRES
          * ---------------------------------------
          *
