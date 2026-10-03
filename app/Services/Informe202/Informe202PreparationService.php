@@ -196,6 +196,85 @@ final class Informe202PreparationService
                 }
             }
 
+            /*
+             * Proteger: clasificación de riesgo cardiovascular (variable 114).
+             * El catálogo del proyecto no tiene una categoría separada para
+             * «extremadamente alto»; el valor permitido más próximo es
+             * 4 = Alto. No cambiar a 21 porque 21 = Riesgo no evaluado.
+             * Registrar advertencia para confirmar la equivalencia con EPS.
+             */
+            if ($destination === self::DESTINATION_PROTEGER) {
+                $riskAnterior = $normalized[114];
+                $riskNuevo = $this->protegerRiesgoCardiovascularCode(
+                    $riskAnterior
+                );
+
+                if ($riskNuevo !== null && $riskNuevo !== $riskAnterior) {
+                    $normalized[114] = $riskNuevo;
+
+                    $warnings[] = $this->warning(
+                        record: $index + 1,
+                        sourceLine: $sourceLine,
+                        variable: 114,
+                        value: $riskAnterior,
+                        message: 'La descripción de riesgo extremadamente alto '
+                            . '(mayor o igual al 40 %) fue normalizada '
+                            . 'a 4 = Alto, valor más alto del catálogo '
+                            . 'disponible. Verificar la equivalencia con '
+                            . 'la EPS antes de radicar el informe. '
+                            . 'No corresponde 21, que significa riesgo no evaluado.'
+                    );
+                }
+            }
+
+            /*
+             * PROTEGER: en el TXT de septiembre, el texto "Extremadamente
+             * alto, mayor o igual al 40 %" llegó a la posición 117,
+             * mientras la variable 114 ya tenía el código clínico 4.
+             *
+             * No convertir riesgo documentado a 21 (no evaluado).
+             * Únicamente reemplazar el texto de 117 por el código 4
+             * existente cuando ambos coincidan. Otros casos son manuales.
+             */
+            if ($destination === self::DESTINATION_PROTEGER) {
+                $ultimoRiesgoAnterior = $normalized[117];
+                $esExtremadamenteAlto =
+                    $this->protegerRiesgoCardiovascularCode(
+                        $ultimoRiesgoAnterior
+                    ) === '4';
+
+                if ($esExtremadamenteAlto) {
+                    if ($normalized[114] === '4') {
+                        $normalized[117] = '4';
+
+                        $warnings[] = $this->warning(
+                            record: $index + 1,
+                            sourceLine: $sourceLine,
+                            variable: 117,
+                            value: $ultimoRiesgoAnterior,
+                            message: 'La descripción extremadamente alto ' 
+                                . 'estaba en la posición 117 y la 114 ya ' 
+                                . 'indicaba riesgo alto (4). Se sincronizó ' 
+                                . 'la posición 117 a 4. El código 21 ' 
+                                . 'significa no evaluado y no describe ' 
+                                . 'este resultado.'
+                        );
+                    } else {
+                        $warnings[] = $this->warning(
+                            record: $index + 1,
+                            sourceLine: $sourceLine,
+                            variable: 117,
+                            value: $ultimoRiesgoAnterior,
+                            message: 'Revisar clasificación clínica: ' 
+                                . 'la descripción en posición 117 indica ' 
+                                . 'riesgo extremadamente alto, pero el ' 
+                                . 'campo 114 contiene otro código. No ' 
+                                . 'se convierte automáticamente a 21.'
+                        );
+                    }
+                }
+            }
+
             $normalizedRecords[] = $normalized;
         }
 
@@ -329,6 +408,36 @@ final class Informe202PreparationService
 
                 if ($tactoNuevo !== null) {
                     $values[22] = $tactoNuevo;
+                }
+
+                $riskNuevo = $this->protegerRiesgoCardiovascularCode(
+                    (string) ($values[114] ?? '')
+                );
+
+                if ($riskNuevo !== null) {
+                    $values[114] = $riskNuevo;
+                }
+
+                // También normaliza el TXT cuando se exporta sin pasar
+                // de nuevo por el paso Preparar informe.
+                if (
+                    $this->protegerRiesgoCardiovascularCode(
+                        (string) ($values[117] ?? '')
+                    ) === '4'
+                ) {
+                    if ((string) $values[114] !== '4') {
+                        throw new RuntimeException(
+                            sprintf(
+                                'Registro %d: la posición 117 dice ' 
+                                . 'extremadamente alto, pero la 114 no ' 
+                                . 'contiene el código 4. Revisar antes ' 
+                                . 'de exportar, sin sustituir por 21.',
+                                $recordIndex + 1
+                            )
+                        );
+                    }
+
+                    $values[117] = '4';
                 }
             }
 
@@ -810,6 +919,39 @@ final class Informe202PreparationService
         return trim((string) $date) === '1800-01-01'
             ? '21'
             : '5';
+    }
+
+    /**
+     * Variable 114 (Proteger): only the stated risk category is recognized.
+     * Allowed codes: 0 No aplica, 4 Alto, 5 Bajo, 6 Moderado,
+     * 21 Riesgo no evaluado. Extremely high must never be silently
+     * converted into 21 because the risk has been evaluated.
+     */
+    private function protegerRiesgoCardiovascularCode(
+        mixed $result
+    ): ?string {
+        $result = trim((string) $result);
+
+        if ($result === '') {
+            return null;
+        }
+
+        $text = mb_strtoupper($result, 'UTF-8');
+        $text = strtr($text, [
+            'Á' => 'A', 'É' => 'E', 'Í' => 'I',
+            'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U', 'Ñ' => 'N',
+        ]);
+        $text = preg_replace('/[^A-Z0-9]+/', ' ', $text) ?? $text;
+        $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+
+        if (
+            str_contains($text, 'EXTREMADAMENTE ALTO')
+            && str_contains($text, 'MAYOR O IGUAL AL 40')
+        ) {
+            return '4';
+        }
+
+        return null;
     }
 
     private function normalizeValue(
