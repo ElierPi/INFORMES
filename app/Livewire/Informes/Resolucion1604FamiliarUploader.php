@@ -3,16 +3,16 @@
 namespace App\Livewire\Informes;
 
 use App\Services\Resolucion1604\FamiliarColombia\Resolucion1604FamiliarExporter;
+use App\Support\Livewire\HandlesTemporaryUploads;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Component;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
-use RuntimeException;
 use Throwable;
 
 final class Resolucion1604FamiliarUploader extends Component
 {
+    use HandlesTemporaryUploads;
     use WithFileUploads;
 
     public $archivo = null;
@@ -51,28 +51,16 @@ final class Resolucion1604FamiliarUploader extends Component
         $this->limpiarResultado();
 
         try {
-            $this->validate();
-            if (! $this->archivo instanceof TemporaryUploadedFile) {
-                throw new RuntimeException('Selecciona nuevamente el archivo Excel.');
-            }
+            $this->validateOnly('periodo');
 
-            $temporaryPath = $this->archivo->getRealPath();
-            if (! is_string($temporaryPath) || ! is_file($temporaryPath)) {
-                throw new RuntimeException('El archivo temporal expiró. Selecciona nuevamente el Excel.');
-            }
-
-            $extension = strtolower($this->archivo->getClientOriginalExtension());
-            if (! in_array($extension, ['xlsx', 'xls'], true)) {
-                throw new RuntimeException('El archivo debe ser Excel (.xlsx o .xls).');
-            }
-            if (filesize($temporaryPath) > 30 * 1024 * 1024) {
-                throw new RuntimeException('El archivo supera el tamaño máximo permitido de 30 MB.');
-            }
-
-            $folder = 'private/uploads/resolucion1604-familiar/'.Str::uuid();
-            Storage::disk('local')->makeDirectory($folder);
-            $relativePath = $this->archivo->storeAs($folder, 'entrada.'.$extension, 'local');
-            $stablePath = Storage::disk('local')->path((string) $relativePath);
+            $folder = 'uploads/resolucion1604-familiar/'.Str::uuid();
+            $stablePath = $this->stabilizeUpload(
+                upload: $this->archivo,
+                extensions: ['xlsx', 'xls'],
+                maxBytes: 30 * 1024 * 1024,
+                folder: $folder,
+                baseName: 'entrada'
+            );
 
             $result = $exporter->export($stablePath, $this->periodo);
             $validation = $result['validation'] ?? [];
@@ -105,6 +93,10 @@ final class Resolucion1604FamiliarUploader extends Component
             $this->error = 'No fue posible procesar el archivo: '.$exception->getMessage();
             $this->mensaje = null;
         } finally {
+            if (isset($folder)) {
+                Storage::disk('local')->deleteDirectory($folder);
+            }
+
             $this->procesando = false;
         }
     }

@@ -73,15 +73,37 @@ final class Resolucion1604FamiliarExcelReader
             throw new RuntimeException('El período seleccionado no es válido.');
         }
 
-        $spreadsheet = IOFactory::load($path);
-        $worksheet = $this->findPeriodSheet($spreadsheet, $periodDate);
+        // Carga optimizada: primero se consultan solo los nombres de las hojas y
+        // después se abre únicamente la hoja del período solicitado. Esto evita
+        // procesar validaciones, estilos y celdas de meses que no se usarán.
+        $reader = IOFactory::createReaderForFile($path);
+        $reader->setReadDataOnly(true);
 
-        if ($worksheet === null) {
+        if (method_exists($reader, 'setReadEmptyCells')) {
+            $reader->setReadEmptyCells(false);
+        }
+
+        if (method_exists($reader, 'setIgnoreRowsWithNoCells')) {
+            $reader->setIgnoreRowsWithNoCells(true);
+        }
+
+        $sheetNames = $reader->listWorksheetNames($path);
+        $targetSheetName = $this->findPeriodSheetName($sheetNames, $periodDate);
+
+        if ($targetSheetName === null) {
             throw new RuntimeException(sprintf(
                 'No se encontró una hoja correspondiente a %s %s.',
                 $this->monthName((int) $periodDate->format('n')),
                 $periodDate->format('Y')
             ));
+        }
+
+        $reader->setLoadSheetsOnly([$targetSheetName]);
+        $spreadsheet = $reader->load($path);
+        $worksheet = $spreadsheet->getSheetByName($targetSheetName);
+
+        if ($worksheet === null) {
+            throw new RuntimeException('No fue posible cargar la hoja seleccionada del período.');
         }
 
         $headerRow = $this->findHeaderRow($worksheet);
@@ -127,6 +149,23 @@ final class Resolucion1604FamiliarExcelReader
             'errors' => $errors,
             'warnings' => $warnings,
         ];
+    }
+
+    /** @param array<int, string> $sheetNames */
+    private function findPeriodSheetName(array $sheetNames, DateTimeImmutable $period): ?string
+    {
+        $targetMonth = (int) $period->format('n');
+        $targetYear = $period->format('Y');
+        $month = $this->normalizeHeader($this->monthName($targetMonth));
+
+        foreach ($sheetNames as $sheetName) {
+            $normalized = $this->normalizeHeader($sheetName);
+            if (str_contains($normalized, $targetYear) && str_contains($normalized, $month)) {
+                return $sheetName;
+            }
+        }
+
+        return count($sheetNames) === 1 ? $sheetNames[0] : null;
     }
 
     private function findPeriodSheet($spreadsheet, DateTimeImmutable $period): mixed
