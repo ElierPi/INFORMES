@@ -43,12 +43,50 @@
                             class="mt-3 w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm dark:border-neutral-700 dark:bg-neutral-950">
                         @error('periodo') <p class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
                     </div>
-                    <div>
-                        <label for="nit-receptor-1552-proteger" class="text-sm font-semibold text-neutral-900 dark:text-white">NIT para el nombre del archivo</label>
-                        <p class="mt-1 text-xs text-neutral-500">Valor observado en el archivo aceptado: 900144397.</p>
-                        <input id="nit-receptor-1552-proteger" type="text" wire:model="nitReceptor" inputmode="numeric"
-                            class="mt-3 w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm dark:border-neutral-700 dark:bg-neutral-950">
-                        @error('nitReceptor') <p class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
+                    <div class="space-y-3">
+                        <div>
+                            <label for="ips-nit-guardado-1552-proteger" class="text-sm font-semibold text-neutral-900 dark:text-white">IPS/NIT guardado</label>
+                            <p class="mt-1 text-xs text-neutral-500">Selecciona una IPS usada anteriormente o deja “NIT manual” para escribir otro.</p>
+                            <select id="ips-nit-guardado-1552-proteger" wire:model.live="ipsNitSeleccionado"
+                                class="mt-3 w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm dark:border-neutral-700 dark:bg-neutral-950">
+                                <option value="">NIT manual / nuevo</option>
+                                @foreach ($ipsNitsGuardados as $ips)
+                                    <option value="{{ $ips['id'] }}">
+                                        {{ $ips['nombre'] ? $ips['nombre'].' — ' : '' }}{{ $ips['nit'] }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="nit-receptor-1552-proteger" class="text-sm font-semibold text-neutral-900 dark:text-white">NIT para el nombre del archivo</label>
+                            <input id="nit-receptor-1552-proteger" type="text" wire:model="nitReceptor" inputmode="numeric" maxlength="12" placeholder="Ej. 900144397"
+                                class="mt-2 w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm dark:border-neutral-700 dark:bg-neutral-950">
+                            @error('nitReceptor') <p class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label for="ips-nombre-1552-proteger" class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Nombre de la IPS (opcional)</label>
+                            <input id="ips-nombre-1552-proteger" type="text" wire:model="ipsNombre" maxlength="120" placeholder="Ej. CIDSMA, Anashii, IPS Centro..."
+                                class="mt-2 w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm dark:border-neutral-700 dark:bg-neutral-950">
+                            @error('ipsNombre') <p class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" wire:click="guardarIpsNit" wire:loading.attr="disabled" wire:target="guardarIpsNit"
+                                class="rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200">
+                                <span wire:loading.remove wire:target="guardarIpsNit">Guardar IPS/NIT</span>
+                                <span wire:loading wire:target="guardarIpsNit">Guardando...</span>
+                            </button>
+
+                            @if ($ipsNitSeleccionado)
+                                <button type="button" wire:click="eliminarIpsNit"
+                                    wire:confirm="¿Eliminar este IPS/NIT de tus guardados?"
+                                    class="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300">
+                                    Eliminar guardado
+                                </button>
+                            @endif
+                        </div>
                     </div>
                 </div>
 
