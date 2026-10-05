@@ -218,6 +218,28 @@ final class CronicosDusakawiCorrectionService
                     $changedCells,
                 );
 
+                // Valores lipídicos enviados como guion: DUSAKAWI exige número.
+                // Solo se corrigen las columnas reportadas explícitamente en el error.
+                $this->normalizeDashLipidValuesFromError(
+                    $sheet,
+                    $row,
+                    $document,
+                    $message,
+                    $audit,
+                    $changedCells,
+                );
+
+                // Fechas como 04-19-2026 son inequívocamente MM-DD-YYYY
+                // porque el segundo componente no puede ser un mes.
+                $this->normalizeUnambiguousUsDatesFromError(
+                    $sheet,
+                    $row,
+                    $document,
+                    $message,
+                    $audit,
+                    $changedCells,
+                );
+
                 /*
                  * Fechas imposibles.
                  *
@@ -235,6 +257,11 @@ final class CronicosDusakawiCorrectionService
                  */
                 foreach ($this->extractImpossibleDateColumns($normalized) as $column) {
                     if (in_array($column, ['AX', 'AZ', 'BB', 'BJ'], true)) {
+                        continue;
+                    }
+
+                    $coordinate = "{$column}{$row}";
+                    if (isset($changedCells[$coordinate])) {
                         continue;
                     }
 
@@ -643,6 +670,106 @@ final class CronicosDusakawiCorrectionService
         return $rawValue;
     }
 
+    private function normalizeDashLipidValuesFromError(
+        Worksheet $sheet,
+        int $row,
+        string $document,
+        string $originalMessage,
+        array &$audit,
+        array &$changedCells,
+    ): void {
+        preg_match_all(
+            '/Col\s+(BC|BD|BE|BF)\s+\([^)]+\):\s+no es n[uú]mero:\s*["“”]?-+["“”]?/iu',
+            $originalMessage,
+            $matches
+        );
+
+        $columns = array_values(array_unique(array_map(
+            static fn (string $column): string => strtoupper($column),
+            $matches[1] ?? []
+        )));
+
+        foreach ($columns as $column) {
+            $coordinate = "{$column}{$row}";
+            $current = trim((string) $sheet->getCell($coordinate)->getFormattedValue());
+
+            if ($current !== '-') {
+                continue;
+            }
+
+            $this->setValue(
+                $sheet,
+                $coordinate,
+                '0',
+                $audit,
+                $changedCells,
+                $row,
+                $document,
+                $column,
+                'Valor lipídico faltante normalizado: - → 0',
+                $originalMessage,
+                true
+            );
+        }
+    }
+
+    private function normalizeUnambiguousUsDatesFromError(
+        Worksheet $sheet,
+        int $row,
+        string $document,
+        string $originalMessage,
+        array &$audit,
+        array &$changedCells,
+    ): void {
+        preg_match_all(
+            '/Col\s+([A-Z]{1,3})\s+\([^)]+\):\s+fecha inv[aá]lida:\s*["“”]?(\d{1,2})-(\d{1,2})-(\d{4})["“”]?/iu',
+            $originalMessage,
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        foreach ($matches as $match) {
+            $column = strtoupper((string) ($match[1] ?? ''));
+            $month = (int) ($match[2] ?? 0);
+            $day = (int) ($match[3] ?? 0);
+            $year = (int) ($match[4] ?? 0);
+
+            // Solo corregir cuando MM-DD-YYYY es inequívoco.
+            if (
+                $month < 1 || $month > 12
+                || $day <= 12 || $day > 31
+                || $year < 1900
+                || ! checkdate($month, $day, $year)
+            ) {
+                continue;
+            }
+
+            $coordinate = "{$column}{$row}";
+            $current = trim((string) $sheet->getCell($coordinate)->getFormattedValue());
+            $expectedSource = sprintf('%02d-%02d-%04d', $month, $day, $year);
+
+            if ($current !== $expectedSource) {
+                continue;
+            }
+
+            $normalizedDate = sprintf('%04d-%02d-%02d', $year, $month, $day);
+
+            $this->setValue(
+                $sheet,
+                $coordinate,
+                $normalizedDate,
+                $audit,
+                $changedCells,
+                $row,
+                $document,
+                $column,
+                "Fecha inequívoca normalizada: {$current} → {$normalizedDate}",
+                $originalMessage,
+                true
+            );
+        }
+    }
+
     private function normalizeHistoricalPlaceholderDatesFromError(
         Worksheet $sheet,
         int $row,
@@ -818,20 +945,14 @@ final class CronicosDusakawiCorrectionService
 
     private function isHistoricalPlaceholder(string $value): bool
     {
-        $normalized = trim(
-            str_replace('/', '-', $value)
-        );
+        $normalized = trim(str_replace('/', '-', $value));
 
-        return in_array(
-            $normalized,
-            [
-                '01-01-1800',
-                '1-1-1800',
-                '1800-01-01',
-                '1800-1-1',
-            ],
-            true
-        );
+        // DUSAKAWI acepta 1800-01-01 como fecha comodín. Algunos Excel
+        // incrementan accidentalmente el día al arrastrar la celda
+        // (1800-01-02, 1800-01-03, ...). Todo valor del año 1800 se trata
+        // como comodín para poder normalizarlo a 1800-01-01 cuando el
+        // archivo de errores lo reporta como "fecha antigua inválida (1800)".
+        return preg_match('/^(?:1800-\d{1,2}-\d{1,2}|\d{1,2}-\d{1,2}-1800)$/', $normalized) === 1;
     }
 
     private function normalizeHeader(string $value): string
@@ -866,10 +987,11 @@ final class CronicosDusakawiCorrectionService
                         $columnIndex
                     );
                 $coordinate = $column.$row;
-                $cell = $sheet->getCell($coordinate);
-                $value = $cell->getValue();
+                $value = $sheet->getCell($coordinate)->getValue();
 
-                // Desactivar wrap en toda celda de texto.
+                // Desactivar wrap en toda celda de texto. No conservar objetos
+                // Cell mientras se consultan estilos/otras celdas: PhpSpreadsheet
+                // puede desvincularlos de la colección interna.
                 if (is_string($value)) {
                     $sheet->getStyle($coordinate)
                         ->getAlignment()
@@ -898,7 +1020,7 @@ final class CronicosDusakawiCorrectionService
                             )
                             : '';
 
-                        $cell->setValueExplicit(
+                        $sheet->getCell($coordinate)->setValueExplicit(
                             $clean,
                             DataType::TYPE_STRING
                         );
