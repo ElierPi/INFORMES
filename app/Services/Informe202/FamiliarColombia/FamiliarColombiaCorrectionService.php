@@ -345,6 +345,72 @@ final class FamiliarColombiaCorrectionService
         $newValue = $error["new_value"] ?? null;
 
         /*
+         * SANITAS 202 - reglas confirmadas con logs SIGIRES.
+         *
+         * 1) En hombres, cuando Sanitas rechaza el suministro de método
+         *    anticonceptivo y entrega explícitamente 21 como valor nuevo,
+         *    se respeta esa corrección sin alterar las fechas 53 y 55.
+         */
+        if (
+            $type === "CD" &&
+            $variable === 54 &&
+            str_contains($description, "metodo anticonceptivo") &&
+            str_contains($description, "hombres") &&
+            $newValue !== null
+        ) {
+            return [
+                54 => (string) $newValue,
+            ];
+        }
+
+        /*
+         * 2) Escala abreviada de desarrollo en niños de 0 a 7 años.
+         *    Sanitas reporta 0 -> 21 en las variables 43 a 46. Cuando la
+         *    fecha 52 viene como 1845-01-01, la escala no debe quedar como
+         *    "No aplica": se normaliza a aplica/no realizada (1800-01-01)
+         *    y el bloque de resultados queda en 21.
+         */
+        if (
+            $type === "CD" &&
+            in_array($variable, [43, 44, 45, 46], true) &&
+            str_contains($description, "escala abreviada de desarrollo") &&
+            (string) $newValue === "21"
+        ) {
+            $sanitasAgeYears = $this->ageYears($record, $cutoffDate);
+            $sanitasIntegralDate = trim((string) ($record[52] ?? ""));
+
+            if (
+                $sanitasAgeYears !== null &&
+                $sanitasAgeYears >= 0 &&
+                $sanitasAgeYears <= 7 &&
+                $sanitasIntegralDate === "1845-01-01"
+            ) {
+                return [
+                    43 => "21",
+                    44 => "21",
+                    45 => "21",
+                    46 => "21",
+                    52 => "1800-01-01",
+                ];
+            }
+        }
+
+        /*
+         * 3) Fecha real de creatinina con resultado 998/sin resultado.
+         *    Sanitas exige el resultado clínico real. No se sustituye la
+         *    fecha ni se inventa un valor de creatinina; queda pendiente
+         *    para revisión manual.
+         */
+        if (
+            $type === "CE" &&
+            $variable === 106 &&
+            str_contains($description, "fecha de toma creatinina") &&
+            str_contains($description, "registre el resultado")
+        ) {
+            return null;
+        }
+
+        /*
          * Familiar de Colombia - error CE, variable 8:
          * "8.Segundo nombre del usuario, longitud no corresponde".
          * Solo ante este rechazo se reemplaza el segundo nombre por NA.

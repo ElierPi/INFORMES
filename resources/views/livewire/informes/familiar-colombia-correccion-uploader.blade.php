@@ -6,11 +6,11 @@
             </p>
 
             <h1 class="mt-1 text-2xl font-bold text-neutral-900 dark:text-white">
-                Corregir errores de Familiar de Colombia
+                Corregir errores de Familiar de Colombia / Sanitas
             </h1>
 
             <p class="mt-2 max-w-4xl text-sm leading-6 text-neutral-600 dark:text-neutral-400">
-                Carga el ZIP original enviado a SIGIRES y el Excel de errores.
+                Carga el ZIP original enviado a SIGIRES (Familiar de Colombia o Sanitas) y el Excel de errores.
                 El sistema conserva la línea de control, corrige los registros
                 tipo 2 y genera nuevamente un ZIP con TXT ANSI.
             </p>
