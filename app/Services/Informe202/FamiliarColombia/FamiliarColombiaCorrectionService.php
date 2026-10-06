@@ -396,18 +396,52 @@ final class FamiliarColombiaCorrectionService
         }
 
         /*
-         * 3) Fecha real de creatinina con resultado 998/sin resultado.
-         *    Sanitas exige el resultado clínico real. No se sustituye la
-         *    fecha ni se inventa un valor de creatinina; queda pendiente
-         *    para revisión manual.
+         * 3) SANITAS 202 - consistencia Fecha/Resultado de creatinina.
+         *
+         * 106 = Fecha de toma de creatinina
+         * 107 = Resultado de creatinina
+         *
+         * Regla operativa confirmada:
+         * - Si existe una fecha clínica real pero no existe un resultado
+         *   útil (vacío, 0 o 998), el par se transforma a No aplica:
+         *       106 = 1845-01-01
+         *       107 = 0
+         * - Si existe resultado pero no existe una fecha clínica real, el
+         *   par se transforma a aplica/sin fecha disponible:
+         *       106 = 1800-01-01
+         *       107 = 21
+         *
+         * Solo se ejecuta ante un error de creatinina reportado por Sanitas.
          */
         if (
             $type === "CE" &&
-            $variable === 106 &&
-            str_contains($description, "fecha de toma creatinina") &&
-            str_contains($description, "registre el resultado")
+            in_array($variable, [106, 107], true) &&
+            str_contains($description, "creatinina")
         ) {
-            return null;
+            $creatinineDate = trim((string) ($record[106] ?? ""));
+            $creatinineResult = trim((string) ($record[107] ?? ""));
+            $hasRealCreatinineDate = $this->isRealDate($creatinineDate);
+
+            if (
+                $hasRealCreatinineDate &&
+                in_array($creatinineResult, ["", "0", "998"], true)
+            ) {
+                return [
+                    106 => "1845-01-01",
+                    107 => "0",
+                ];
+            }
+
+            if (
+                !$hasRealCreatinineDate &&
+                $creatinineResult !== "" &&
+                !($creatinineDate === "1845-01-01" && $creatinineResult === "0")
+            ) {
+                return [
+                    106 => "1800-01-01",
+                    107 => "21",
+                ];
+            }
         }
 
         /*
