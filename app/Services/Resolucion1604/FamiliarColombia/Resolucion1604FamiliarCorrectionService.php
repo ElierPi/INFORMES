@@ -56,11 +56,12 @@ final class Resolucion1604FamiliarCorrectionService
             $lineNumber = (int) $match[1];
             $message = trim($match[2]);
             if ($lineNumber < 1 || $lineNumber > count($lines)) {
-                $manual[] = [
-                    'line' => $lineNumber,
-                    'message' => $message,
-                    'reason' => 'La línea indicada no existe en el TXT original.',
-                ];
+                $manual[] = $this->buildManualItem(
+                    lineNumber: $lineNumber,
+                    message: $message,
+                    reason: 'La línea indicada no existe en el TXT original.',
+                    sourceLine: null,
+                );
                 continue;
             }
 
@@ -82,11 +83,12 @@ final class Resolucion1604FamiliarCorrectionService
                 continue;
             }
 
-            $manual[] = [
-                'line' => $lineNumber,
-                'message' => $message,
-                'reason' => 'Este patrón todavía no tiene una regla automática configurada.',
-            ];
+            $manual[] = $this->buildManualItem(
+                lineNumber: $lineNumber,
+                message: $message,
+                reason: 'Este patrón todavía no tiene una regla automática configurada.',
+                sourceLine: $lines[$lineNumber - 1],
+            );
         }
 
         if ($audit === [] && $manual === []) {
@@ -129,6 +131,34 @@ final class Resolucion1604FamiliarCorrectionService
             'audit' => $audit,
             'manual' => $manual,
             'encoding' => $encoding,
+        ];
+    }
+
+
+    /** @return array<string, mixed> */
+    private function buildManualItem(int $lineNumber, string $message, string $reason, ?string $sourceLine): array
+    {
+        $fields = is_string($sourceLine) ? explode(';', $sourceLine) : [];
+        $record = [];
+
+        foreach (Resolucion1604FamiliarExcelReader::FIELD_NAMES as $index => $fieldName) {
+            $record[$fieldName] = trim((string) ($fields[$index] ?? ''));
+        }
+
+        return [
+            'line' => $lineNumber,
+            'message' => $message,
+            'reason' => $reason,
+            'document_type' => $record['TIPO_DOCUMENTO'] ?? '',
+            'document' => $record['NUMERO_DOCUMENTO'] ?? '',
+            'patient' => $record['NOMBRE_AFILIADO'] ?? '',
+            'technology' => $record['NOMBRE_TECNOLOGIA'] ?? '',
+            'cum' => $record['CUM'] ?? '',
+            'formula' => $record['NRO_FORMULA'] ?? '',
+            'nit' => $record['NIT'] ?? '',
+            'contract' => $record['NUMERO_CONTRATO'] ?? '',
+            'source_line' => $sourceLine,
+            'record' => $record,
         ];
     }
 

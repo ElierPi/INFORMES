@@ -3,16 +3,16 @@
 namespace App\Livewire\Informes;
 
 use App\Services\Resolucion1604\FamiliarColombia\Resolucion1604FamiliarCorrectionService;
+use App\Support\Livewire\HandlesTemporaryUploads;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Component;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
-use RuntimeException;
 use Throwable;
 
 final class Resolucion1604FamiliarCorrectionUploader extends Component
 {
+    use HandlesTemporaryUploads;
     use WithFileUploads;
 
     public $archivoInforme = null;
@@ -44,16 +44,23 @@ final class Resolucion1604FamiliarCorrectionUploader extends Component
 
         try {
             $this->validate();
-            $originalName = $this->validarTxt($this->archivoInforme, 30, 'informe');
-            $this->validarTxt($this->archivoErrores, 10, 'errores');
+            $originalName = $this->archivoInforme?->getClientOriginalName() ?: 'informe_1604.txt';
 
-            $folder = 'private/uploads/resolucion1604-familiar-correccion/'.Str::uuid();
-            Storage::disk('local')->makeDirectory($folder);
-
-            $inputRelative = $this->archivoInforme->storeAs($folder, 'informe.txt', 'local');
-            $errorsRelative = $this->archivoErrores->storeAs($folder, 'errores.txt', 'local');
-            $inputPath = Storage::disk('local')->path((string) $inputRelative);
-            $errorsPath = Storage::disk('local')->path((string) $errorsRelative);
+            $folder = 'uploads/resolucion1604-familiar-correccion/'.Str::uuid();
+            $inputPath = $this->stabilizeUpload(
+                upload: $this->archivoInforme,
+                extensions: ['txt'],
+                maxBytes: 30 * 1024 * 1024,
+                folder: $folder,
+                baseName: 'informe'
+            );
+            $errorsPath = $this->stabilizeUpload(
+                upload: $this->archivoErrores,
+                extensions: ['txt'],
+                maxBytes: 10 * 1024 * 1024,
+                folder: $folder,
+                baseName: 'errores'
+            );
             $outputDirectory = Storage::disk('local')->path($folder.'/salida');
 
             $result = $service->correct($inputPath, $errorsPath, $originalName, $outputDirectory);
@@ -97,6 +104,69 @@ final class Resolucion1604FamiliarCorrectionUploader extends Component
         );
     }
 
+    public function descargarErroresSinRegla()
+    {
+        if ($this->pendientesManuales === []) {
+            $this->error = 'No hay errores sin regla automática para descargar.';
+            return null;
+        }
+
+        $content = $this->crearReporteErroresSinRegla();
+        $fileName = 'ERRORES_SIN_REGLA_1604_FAMILIAR_'.now()->format('Ymd_His').'.txt';
+
+        return response()->streamDownload(
+            static function () use ($content): void {
+                echo "\xEF\xBB\xBF".$content;
+            },
+            $fileName,
+            ['Content-Type' => 'text/plain; charset=UTF-8']
+        );
+    }
+
+    private function crearReporteErroresSinRegla(): string
+    {
+        $lines = [
+            'RESOLUCION 1604 - FAMILIAR COLOMBIA - MULTI-IPS',
+            'ERRORES SIN REGLA AUTOMATICA',
+            'Generado: '.now()->format('Y-m-d H:i:s'),
+            'Total pendientes: '.count($this->pendientesManuales),
+            '',
+            'Este archivo contiene únicamente errores que el sistema todavía no sabe corregir automáticamente.',
+            'Puede compartirse para analizar nuevos patrones y crear reglas posteriores.',
+            '',
+        ];
+
+        foreach ($this->pendientesManuales as $index => $item) {
+            $lines[] = str_repeat('=', 90);
+            $lines[] = 'PENDIENTE '.($index + 1);
+            $lines[] = 'Linea: '.data_get($item, 'line', '—');
+            $lines[] = 'NIT IPS: '.data_get($item, 'nit', '');
+            $lines[] = 'Contrato: '.data_get($item, 'contract', '');
+            $lines[] = 'Documento: '.trim(data_get($item, 'document_type', '').' '.data_get($item, 'document', ''));
+            $lines[] = 'Paciente: '.data_get($item, 'patient', '');
+            $lines[] = 'Medicamento/Tecnologia: '.data_get($item, 'technology', '');
+            $lines[] = 'CUM: '.data_get($item, 'cum', '');
+            $lines[] = 'Nro. formula: '.data_get($item, 'formula', '');
+            $lines[] = 'Mensaje de Familiar: '.data_get($item, 'message', '');
+            $lines[] = 'Motivo interno: '.data_get($item, 'reason', '');
+            $lines[] = '';
+            $lines[] = 'REGISTRO ORIGINAL - 39 CAMPOS:';
+
+            $record = data_get($item, 'record', []);
+            if (is_array($record)) {
+                $position = 1;
+                foreach ($record as $fieldName => $value) {
+                    $lines[] = str_pad((string) $position, 2, '0', STR_PAD_LEFT).' '.$fieldName.' = '.(string) $value;
+                    $position++;
+                }
+            }
+
+            $lines[] = '';
+        }
+
+        return implode("\r\n", $lines);
+    }
+
     public function reiniciar(): void
     {
         $this->reset([
@@ -104,24 +174,6 @@ final class Resolucion1604FamiliarCorrectionUploader extends Component
             'txtPath', 'txtName', 'resumen', 'auditoria', 'pendientesManuales',
         ]);
         $this->resetValidation();
-    }
-
-    private function validarTxt($file, int $maxMb, string $label): string
-    {
-        if (! $file instanceof TemporaryUploadedFile) {
-            throw new RuntimeException('Selecciona nuevamente el TXT de '.$label.'.');
-        }
-        $path = $file->getRealPath();
-        if (! is_string($path) || ! is_file($path)) {
-            throw new RuntimeException('El archivo temporal de '.$label.' expiró. Selecciónalo nuevamente.');
-        }
-        if (strtolower($file->getClientOriginalExtension()) !== 'txt') {
-            throw new RuntimeException('El archivo de '.$label.' debe tener extensión .txt.');
-        }
-        if (filesize($path) > $maxMb * 1024 * 1024) {
-            throw new RuntimeException('El archivo de '.$label.' supera el tamaño máximo permitido de '.$maxMb.' MB.');
-        }
-        return $file->getClientOriginalName();
     }
 
     private function limpiarResultado(): void
