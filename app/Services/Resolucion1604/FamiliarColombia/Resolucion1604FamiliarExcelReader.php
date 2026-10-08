@@ -60,6 +60,18 @@ final class Resolucion1604FamiliarExcelReader
         'CC', 'TI', 'RC', 'CE', 'PA', 'PE', 'PT', 'MS', 'AS', 'CD', 'NV', 'SC', 'CN',
     ];
 
+    /**
+     * Contratos confirmados para IPS que requieren completar o corregir
+     * el valor que viene en la plantilla. Para IPS no registradas aquí
+     * se conserva el contrato que trae el Excel.
+     *
+     * @var array<string, string>
+     */
+    private const CONTRACT_BY_NIT = [
+        '901533697' => '2026-170-S', // CIDSMA
+        '900144397' => '2025-125-S', // IPS WAYUU ANASHII
+    ];
+
     /** @return array<string, mixed> */
     public function read(string $path, string $period): array
     {
@@ -220,7 +232,7 @@ final class Resolucion1604FamiliarExcelReader
      */
     private function normalizeRecord(array $values, int $row, array &$errors, array &$warnings): ?array
     {
-        $nit = $this->digitsOnly($values[0] ?? null);
+        $nit = $this->normalizeNit($values[0] ?? null);
 
         if ($nit === '') {
             return null;
@@ -268,7 +280,7 @@ final class Resolucion1604FamiliarExcelReader
             $this->numericText($values[7] ?? null),
             $this->digitsOnly($values[8] ?? null),
             strtoupper($this->cleanText($values[9] ?? null)),
-            $this->numericText($values[10] ?? null),
+            $this->normalizeRegime($values[10] ?? null),
             $this->cleanText($values[11] ?? null),
             $this->numericText($values[12] ?? null),
             $this->cleanTechnology($values[13] ?? null),
@@ -281,7 +293,7 @@ final class Resolucion1604FamiliarExcelReader
             $this->numericText($values[20] ?? null),
             $this->dateTimeText($values[21] ?? null),
             $this->dateTimeText($values[22] ?? null),
-            $this->numericText($values[23] ?? null),
+            $this->normalizeDeliveryTime($values[21] ?? null, $values[22] ?? null, $values[23] ?? null),
             $this->numericText($values[24] ?? null),
             $this->pendingDateText($values[25] ?? null),
             $this->numericText($values[26] ?? null),
@@ -292,27 +304,36 @@ final class Resolucion1604FamiliarExcelReader
             $this->numericText($values[31] ?? null),
             $this->cleanText($values[32] ?? null),
             $this->cleanText($values[33] ?? null),
-            $this->numericText($values[34] ?? null),
+            $this->normalizePqrsTutela($values[34] ?? null),
             $this->numericText($values[35] ?? null),
             $this->cleanText($values[36] ?? null),
             $this->cleanText($values[37] ?? null),
             $this->cleanText($values[38] ?? null),
         ];
 
-        // Reglas confirmadas por la plataforma de Familiar Colombia para CIDSMA.
-        // 1) El contrato válido de CIDSMA es 2026-170-S.
-        if ($record[36] !== '2026-170-S') {
+        // El módulo es multi-IPS. Solo se aplica un contrato conocido cuando
+        // el NIT identifica una IPS configurada; para cualquier otra IPS se
+        // conserva el contrato recibido en el Excel.
+        $configuredContract = self::CONTRACT_BY_NIT[$record[0]] ?? null;
+        if ($configuredContract !== null && strtoupper($record[36]) !== $configuredContract) {
             $originalContract = $record[36];
-            $record[36] = '2026-170-S';
+            $record[36] = $configuredContract;
             $warnings[] = $this->warning(
                 $row,
                 'NUMERO_CONTRATO',
                 $originalContract,
-                'Se reemplazó automáticamente por el contrato válido de CIDSMA: 2026-170-S.'
+                'Se normalizó el contrato según la IPS identificada por el NIT '.$record[0].': '.$configuredContract.'.'
             );
+        } else {
+            $record[36] = strtoupper($record[36]);
         }
 
-        // 2) Si no existe cantidad pendiente, Familiar exige FECHA_ENTREGA_PENDIENTE vacía.
+        // Si no existe cantidad pendiente, Familiar exige FECHA_ENTREGA_PENDIENTE vacía.
+        if ($record[24] === '' && $record[25] === '') {
+            $record[24] = '0';
+            $record[26] = '0';
+        }
+
         $pendingQuantity = $this->toFloat($record[24]);
         if ($pendingQuantity !== null && abs($pendingQuantity) < 0.000001) {
             if ($record[25] !== '') {
@@ -374,11 +395,20 @@ final class Resolucion1604FamiliarExcelReader
         if ($record[4] === '' || strlen($record[4]) !== 2) {
             $errors[] = $this->error($row, 4, $record[4], 'El tipo de documento debe tener 2 caracteres.');
         }
-        foreach ([5, 6, 7, 9, 11, 13] as $index) {
+        foreach ([5, 6, 7, 9, 13] as $index) {
             if ($record[$index] === '') {
                 $errors[] = $this->error($row, $index, '', 'El campo obligatorio está vacío.');
             }
         }
+        if ($record[11] === '') {
+            $warnings[] = $this->warning(
+                $row,
+                'NRO_FORMULA',
+                '',
+                'La IPS no suministró número de fórmula/autorización/ID de entrega; se conserva vacío sin inventar información.'
+            );
+        }
+
         if (! in_array($record[10], ['1', '2'], true)) {
             $errors[] = $this->error($row, 10, $record[10], 'El régimen debe ser 1 (Contributivo) o 2 (Subsidiado).');
         }
@@ -587,6 +617,66 @@ final class Resolucion1604FamiliarExcelReader
         } catch (Throwable) {
             return $this->cleanText($text);
         }
+    }
+
+    private function normalizeNit(mixed $value): string
+    {
+        $text = $this->cleanText($value);
+
+        // Si el NIT viene con dígito de verificación (ej. 900144397-1),
+        // Familiar Colombia trabaja con el NIT base.
+        if (preg_match('/^(\d+)-\d$/', $text, $match)) {
+            return $match[1];
+        }
+
+        return $this->digitsOnly($value);
+    }
+
+    private function normalizeRegime(mixed $value): string
+    {
+        $text = strtoupper($this->cleanText($value));
+        $normalized = preg_replace('/[^A-Z0-9]+/', '', $text) ?? $text;
+
+        if (in_array($normalized, ['1', 'CONTRIBUTIVO', 'CONTRIBUTIVA'], true)) {
+            return '1';
+        }
+
+        // Se incluye SUDSIDIADO porque aparece así en plantillas reales de IPS.
+        if (in_array($normalized, ['2', 'SUBSIDIADO', 'SUBSIDIADA', 'SUDSIDIADO'], true)) {
+            return '2';
+        }
+
+        return $this->numericText($value);
+    }
+
+    private function normalizePqrsTutela(mixed $value): string
+    {
+        $text = $this->numericText($value);
+
+        // En ausencia de PQRD/Tutela, el catálogo del módulo usa 3 = No aplica.
+        return $text === '' ? '3' : $text;
+    }
+
+    private function normalizeDeliveryTime(mixed $request, mixed $delivery, mixed $value): string
+    {
+        $text = $this->numericText($value);
+
+        // Algunas IPS exportan por error la fecha de entrega en la columna
+        // TIEMPO_ENTREGA. Si los tres seriales son la misma fecha de Excel,
+        // la entrega fue el mismo día y el tiempo correcto es 0.
+        if (is_numeric($request) && is_numeric($delivery) && is_numeric($value)) {
+            $requestNumber = (float) $request;
+            $deliveryNumber = (float) $delivery;
+            $valueNumber = (float) $value;
+
+            if ($requestNumber > 1000
+                && abs($requestNumber - $deliveryNumber) < 0.000001
+                && abs($deliveryNumber - $valueNumber) < 0.000001) {
+                return '0';
+            }
+        }
+
+        return $text;
     }
 
     private function cleanTechnology(mixed $value): string
