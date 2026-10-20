@@ -4,7 +4,9 @@ namespace App\Services\Reports\Excel;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use InvalidArgumentException;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -17,7 +19,7 @@ class ConfigurableExcelReader
     public function read(string $path, string $configKey): array
     {
         if (! is_file($path)) {
-            throw new RuntimeException('No se encontró el archivo Excel.');
+            throw new InvalidArgumentException('No se encontró el archivo Excel.');
         }
 
         $configuration = config($configKey);
@@ -35,10 +37,10 @@ class ConfigurableExcelReader
         }
 
         try {
-            $spreadsheet = IOFactory::load($path);
+            $spreadsheet = IOFactory::load($path, 0, ['Xlsx', 'Xls']);
         } catch (Throwable $exception) {
-            throw new RuntimeException(
-                'No fue posible abrir el archivo Excel: '.$exception->getMessage(),
+            throw new InvalidArgumentException(
+                'No fue posible abrir el archivo Excel. Verifique que sea un archivo válido y vuelva a cargarlo.',
                 previous: $exception
             );
         }
@@ -57,8 +59,8 @@ class ConfigurableExcelReader
 
                 if (! $sheet instanceof Worksheet) {
                     if ($requiredSheet) {
-                        throw new RuntimeException(
-                            "No se encontró la hoja obligatoria ".
+                        throw new InvalidArgumentException(
+                            'No se encontró la hoja obligatoria '.
                             "'".($definition['name'] ?? $sheetKey)."'. ".
                             'Hojas disponibles: '.
                             implode(', ', $spreadsheet->getSheetNames()).'.'
@@ -88,6 +90,12 @@ class ConfigurableExcelReader
                     )
                     : $configuredStart;
 
+                $preserveInvalidRows = (bool) ($configuration['preserve_invalid_rows'] ?? false);
+
+                if ($preserveInvalidRows) {
+                    $dataStartRow = min($dataStartRow, $configuredStart);
+                }
+
                 $result[$sheetKey] = [
                     'sheet_name' => $sheet->getTitle(),
                     'found' => true,
@@ -101,7 +109,8 @@ class ConfigurableExcelReader
                         $sheet,
                         $columns,
                         $dataStartRow,
-                        $recordType
+                        $recordType,
+                        $preserveInvalidRows
                     ),
                 ];
             }
@@ -191,7 +200,8 @@ class ConfigurableExcelReader
         Worksheet $sheet,
         array $columns,
         int $dataStartRow,
-        string $recordType
+        string $recordType,
+        bool $preserveInvalidRows = false
     ): array {
         $records = [];
         $highestRow = $sheet->getHighestDataRow();
@@ -204,20 +214,42 @@ class ConfigurableExcelReader
         for ($row = $dataStartRow; $row <= $highestRow; $row++) {
             $values = [];
 
-            for ($column = 1; $column <= $expectedColumns; $column++) {
+            $rawValues = [];
+            $lastColumn = $preserveInvalidRows
+                ? max($expectedColumns, Coordinate::columnIndexFromString($sheet->getHighestDataColumn($row)))
+                : $expectedColumns;
+
+            for ($column = 1; $column <= $lastColumn; $column++) {
+                $rawValues[] = $sheet->getCell([$column, $row])->getValue();
                 $values[] = $this->normalizeCellValue(
                     $sheet->getCell([$column, $row]),
                     $columns[$column - 1] ?? []
                 );
             }
 
+            while (count($values) > $expectedColumns && trim((string) end($values)) === '') {
+                array_pop($values);
+                array_pop($rawValues);
+            }
+
             if ($this->isEmptyRow($values)) {
                 continue;
             }
 
+            if ($preserveInvalidRows) {
+                $normalizedValues = array_map(static fn (mixed $value): string => is_scalar($value) ? mb_strtolower(trim((string) $value)) : '', $rawValues);
+                $columnNames = array_map(static fn (array $column): string => mb_strtolower(trim((string) ($column['name'] ?? ''))), $columns);
+                $columnNumbers = array_map('strval', range(1, $expectedColumns));
+
+                if ($normalizedValues === $columnNames || $normalizedValues === $columnNumbers) {
+                    continue;
+                }
+            }
+
             // Evita leer títulos, numeración de columnas o filas ajenas.
             if (
-                $recordType !== ''
+                ! $preserveInvalidRows
+                && $recordType !== ''
                 && trim((string) ($values[0] ?? '')) !== $recordType
             ) {
                 continue;
@@ -324,8 +356,9 @@ class ConfigurableExcelReader
 
         foreach (['H:i', 'H:i:s', 'h:i A', 'g:i A'] as $format) {
             $time = DateTimeImmutable::createFromFormat('!'.$format, $text);
+            $errors = DateTimeImmutable::getLastErrors();
 
-            if ($time instanceof DateTimeImmutable) {
+            if ($time instanceof DateTimeImmutable && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
                 return $time->format('H:i');
             }
         }
