@@ -1,10 +1,23 @@
 <?php
 
+/**
+ * El Excel de entrada utiliza F = Femenino y M = Masculino, según el formato indicado por la IPS.
+ * Es una codificación distinta de H/M/I del anexo técnico 2 de la Resolución 0256 de 2016.
+ * La validación conserva los valores originales y no convierte entre ambos catálogos.
+ */
 $personFields = [
-    ['name' => 'Tipo de identificación del usuario', 'type' => 'A', 'required' => true, 'max' => 2, 'allowed' => ['RC','TI','CC','CE','PA','CD','PT','SC','PE','AS','MS','CN','NV']],
+    ['name' => 'Tipo de identificación del usuario', 'type' => 'A', 'required' => true, 'max' => 2, 'allowed' => ['RC', 'TI', 'CC', 'CE', 'PA', 'CD', 'PT', 'SC', 'PE', 'AS', 'MS', 'CN', 'NV']],
     ['name' => 'Número de identificación del usuario', 'type' => 'A', 'required' => true, 'max' => 16],
     ['name' => 'Fecha de nacimiento del usuario', 'type' => 'F', 'required' => true, 'max' => 10],
-    ['name' => 'Sexo del usuario', 'type' => 'A', 'required' => true, 'max' => 1, 'allowed' => ['H','M','I']],
+    [
+        'name' => 'Sexo del usuario',
+        'type' => 'A',
+        'required' => true,
+        'max' => 1,
+        'allowed' => ['F', 'M'],
+        'allowed_labels' => ['F' => 'Femenino', 'M' => 'Masculino'],
+        'help' => 'En este Excel: F = Femenino; M = Masculino. Se conserva el valor original.',
+    ],
     ['name' => 'Primer apellido del usuario', 'type' => 'A', 'required' => true, 'max' => 60, 'uppercase' => true],
     ['name' => 'Segundo apellido del usuario', 'type' => 'A', 'required' => false, 'max' => 60, 'uppercase' => true],
     ['name' => 'Primer nombre del usuario', 'type' => 'A', 'required' => true, 'max' => 60, 'uppercase' => true],
@@ -13,6 +26,8 @@ $personFields = [
 ];
 
 return [
+    'preserve_invalid_rows' => true,
+
     'control_sheet' => 'tipo1',
     'control_total_index' => 6,
 
@@ -47,7 +62,7 @@ return [
             'columns' => [
                 ['name' => 'Tipo de registro', 'type' => 'N', 'required' => true, 'max' => 1, 'allowed' => ['1']],
                 ['name' => 'Código de habilitación de la IPS', 'type' => 'A', 'required' => true, 'max' => 12],
-                ['name' => 'Tipo de identificación de la IPS', 'type' => 'A', 'required' => true, 'max' => 3, 'allowed' => ['NI','NIT']],
+                ['name' => 'Tipo de identificación de la IPS', 'type' => 'A', 'required' => true, 'max' => 3, 'allowed' => ['NI', 'NIT']],
                 ['name' => 'Número de identificación de la IPS', 'type' => 'A', 'required' => true, 'max' => 12],
                 ['name' => 'Fecha inicial del período', 'type' => 'F', 'required' => true, 'max' => 10],
                 ['name' => 'Fecha final del período', 'type' => 'F', 'required' => true, 'max' => 10],
@@ -73,7 +88,7 @@ return [
                     'type' => 'N',
                     'required' => true,
                     'max' => 1,
-                    'allowed' => ['1','2','3','4','5','6','7','8','9'],
+                    'allowed' => ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
                     'allowed_labels' => [
                         '1' => 'Consulta de primera vez de Medicina General',
                         '2' => 'Consulta de primera vez de Odontología General',
@@ -88,7 +103,7 @@ return [
                     'help' => 'Debe registrar uno de los códigos numéricos permitidos del 1 al 9.',
                 ],
                 ['name' => 'Fecha de solicitud de la cita', 'type' => 'F', 'required' => true, 'max' => 10],
-                ['name' => 'La cita fue asignada', 'type' => 'N', 'required' => true, 'max' => 1, 'allowed' => ['1','2']],
+                ['name' => 'La cita fue asignada', 'type' => 'N', 'required' => true, 'max' => 1, 'allowed' => ['1', '2']],
                 ['name' => 'Fecha de asignación de la cita', 'type' => 'F', 'required' => false, 'max' => 10],
                 ['name' => 'Fecha deseada por el usuario', 'type' => 'F', 'required' => true, 'max' => 10],
             ],
@@ -107,7 +122,7 @@ return [
             'columns' => [
                 ['name' => 'Tipo de registro', 'type' => 'N', 'required' => true, 'max' => 1, 'allowed' => ['3']],
                 ['name' => 'Consecutivo de registro', 'type' => 'N', 'required' => true, 'max' => 10],
-                ['name' => 'Tipo de identificación de la entidad reportadora', 'type' => 'A', 'required' => true, 'max' => 3, 'allowed' => ['NI','NIT']],
+                ['name' => 'Tipo de identificación de la entidad reportadora', 'type' => 'A', 'required' => true, 'max' => 3, 'allowed' => ['NI', 'NIT']],
                 ['name' => 'Número de identificación de la entidad reportadora', 'type' => 'A', 'required' => true, 'max' => 12],
                 ['name' => 'Usuarios que respondieron muy buena', 'type' => 'N', 'required' => true, 'max' => 7],
                 ['name' => 'Usuarios que respondieron buena', 'type' => 'N', 'required' => true, 'max' => 7],
@@ -140,9 +155,9 @@ return [
                 ['name' => 'Código del procedimiento quirúrgico', 'type' => 'N', 'required' => true, 'max' => 6],
                 ['name' => 'Fecha de solicitud de programación', 'type' => 'F', 'required' => true, 'max' => 10],
                 ['name' => 'Fecha de programación', 'type' => 'F', 'required' => true, 'max' => 10],
-                ['name' => 'Se realizó el procedimiento', 'type' => 'N', 'required' => true, 'max' => 1, 'allowed' => ['1','2']],
-                ['name' => 'Causa de no realización', 'type' => 'N', 'required' => false, 'max' => 1, 'allowed' => ['1','2','3']],
-                ['name' => 'Se reprogramó el procedimiento', 'type' => 'N', 'required' => true, 'max' => 1, 'allowed' => ['1','2']],
+                ['name' => 'Se realizó el procedimiento', 'type' => 'N', 'required' => true, 'max' => 1, 'allowed' => ['1', '2']],
+                ['name' => 'Causa de no realización', 'type' => 'N', 'required' => false, 'max' => 1, 'allowed' => ['1', '2', '3']],
+                ['name' => 'Se reprogramó el procedimiento', 'type' => 'N', 'required' => true, 'max' => 1, 'allowed' => ['1', '2']],
             ],
         ],
 
@@ -159,7 +174,7 @@ return [
             'columns' => [
                 ['name' => 'Tipo de registro', 'type' => 'N', 'required' => true, 'max' => 1, 'allowed' => ['5']],
                 ['name' => 'Consecutivo de registro', 'type' => 'N', 'required' => true, 'max' => 10],
-                ['name' => 'Tipo de identificación de la entidad reportadora', 'type' => 'A', 'required' => true, 'max' => 3, 'allowed' => ['NI','NIT']],
+                ['name' => 'Tipo de identificación de la entidad reportadora', 'type' => 'A', 'required' => true, 'max' => 3, 'allowed' => ['NI', 'NIT']],
                 ['name' => 'Número de identificación de la entidad reportadora', 'type' => 'A', 'required' => true, 'max' => 12],
                 ['name' => 'Caídas en hospitalización', 'type' => 'N', 'required' => true, 'max' => 10],
                 ['name' => 'Caídas en urgencias', 'type' => 'N', 'required' => true, 'max' => 10],

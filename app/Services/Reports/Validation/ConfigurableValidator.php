@@ -3,8 +3,6 @@
 namespace App\Services\Reports\Validation;
 
 use DateTimeImmutable;
-use App\Services\Reports\Validation\ValidationError;
-use App\Services\Reports\Validation\ValidationResult;
 
 class ConfigurableValidator
 {
@@ -14,6 +12,11 @@ class ConfigurableValidator
         array $additionalErrors = []
     ): array {
         $configuration = config($configKey, []);
+
+        if (! is_array($configuration) || ! is_array($configuration['sheets'] ?? null) || $configuration['sheets'] === []) {
+            throw new \RuntimeException('No se encontró una configuración válida para el validador.');
+        }
+
         $errors = $additionalErrors;
         $validRecords = [];
 
@@ -23,6 +26,10 @@ class ConfigurableValidator
             $records = $sheetData['records'] ?? [];
 
             if (! is_array($sheetData)) {
+                if (($definition['required_sheet'] ?? true) === false) {
+                    continue;
+                }
+
                 $errors[] = $this->error(
                     $sheetName,
                     null,
@@ -31,6 +38,7 @@ class ConfigurableValidator
                     null,
                     'La hoja no fue procesada.'
                 );
+
                 continue;
             }
 
@@ -96,6 +104,33 @@ class ConfigurableValidator
             ];
         }
 
+        $invalidSheets = [];
+        $invalidRows = [];
+
+        foreach ($errors as $error) {
+            $sheetName = $error['sheet'] ?? null;
+
+            if ($sheetName === null) {
+                continue;
+            }
+
+            if (($error['row'] ?? null) === null) {
+                $invalidSheets[$sheetName] = true;
+            } else {
+                $invalidRows[$sheetName][(int) $error['row']] = true;
+            }
+        }
+
+        foreach ($validRecords as $sheetKey => $records) {
+            $sheetName = $configuration['sheets'][$sheetKey]['name'] ?? $sheetKey;
+
+            $validRecords[$sheetKey] = array_values(array_filter(
+                $records,
+                static fn (array $record): bool => ! isset($invalidSheets[$sheetName])
+                    && ! isset($invalidRows[$sheetName][(int) $record['excel_row']])
+            ));
+        }
+
         return [
             'valid' => $errors === [],
             'errors' => array_values($errors),
@@ -137,27 +172,27 @@ class ConfigurableValidator
             $column = $index + 1;
             $field = $definition['name'] ?? "Columna {$column}";
 
-if (($definition['required'] ?? false) && $text === '') {
+            if (($definition['required'] ?? false) && $text === '') {
 
-    $errors[] = [
-        'sheet' => $sheetName,
-        'row' => $row,
-        'column' => $column,
-        'column_letter' => $this->columnLetter($column),
-        'coordinate' => $this->columnLetter($column) . $row,
-        'field' => $field,
-        'value' => $value,
-        'display_value' => '(vacío)',
-        'message' => 'El campo es obligatorio.',
-        'help' => $definition['help'] ?? null,
-        'allowed_values' => $definition['allowed'] ?? [],
-        'allowed_labels' => $definition['allowed_labels'] ?? [],
-        'severity' => 'error',
-        'rule' => 'required',
-    ];
+                $errors[] = [
+                    'sheet' => $sheetName,
+                    'row' => $row,
+                    'column' => $column,
+                    'column_letter' => $this->columnLetter($column),
+                    'coordinate' => $this->columnLetter($column).$row,
+                    'field' => $field,
+                    'value' => $value,
+                    'display_value' => '(vacío)',
+                    'message' => 'El campo es obligatorio.',
+                    'help' => $definition['help'] ?? null,
+                    'allowed_values' => $definition['allowed'] ?? [],
+                    'allowed_labels' => $definition['allowed_labels'] ?? [],
+                    'severity' => 'error',
+                    'rule' => 'required',
+                ];
 
-    continue;
-}
+                continue;
+            }
 
             if ($text === '') {
                 continue;
@@ -326,8 +361,7 @@ if (($definition['required'] ?? false) && $text === '') {
                 'records' => count($data[$key]['records'] ?? []),
                 'errors' => count(array_filter(
                     $errors,
-                    fn (array $error): bool =>
-                        ($error['sheet'] ?? null) === $sheetName
+                    fn (array $error): bool => ($error['sheet'] ?? null) === $sheetName
                 )),
             ];
         }
@@ -353,16 +387,16 @@ if (($definition['required'] ?? false) && $text === '') {
         );
     }
 
-private function columnLetter(int $column): string
-{
-    $letter = '';
+    private function columnLetter(int $column): string
+    {
+        $letter = '';
 
-    while ($column > 0) {
-        $remainder = ($column - 1) % 26;
-        $letter = chr(65 + $remainder) . $letter;
-        $column = intdiv($column - 1, 26);
+        while ($column > 0) {
+            $remainder = ($column - 1) % 26;
+            $letter = chr(65 + $remainder).$letter;
+            $column = intdiv($column - 1, 26);
+        }
+
+        return $letter;
     }
-
-    return $letter;
-}
 }
