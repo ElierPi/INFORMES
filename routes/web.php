@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureDevelopmentEnvironment;
 use App\Livewire\Informes\GestantesCorreccionUploader;
 use App\Services\Gestantes\GestantesAutoCorrector;
 use App\Services\Importing\ExcelAnalyzer;
@@ -42,14 +43,16 @@ Route::middleware(['auth', 'verified'])
         Route::view('/resolucion-202/corregir', 'informes.resolucion-202-corregir')
             ->name('resolucion-202.corregir');
 
-Route::view(
-    '/resolucion-202/corregir-familiar',
-    'informes.resolucion-202-corregir-familiar'
-)->name('resolucion-202.corregir-familiar');
-
+        Route::view(
+            '/resolucion-202/corregir-familiar',
+            'informes.resolucion-202-corregir-familiar'
+        )->name('resolucion-202.corregir-familiar');
 
         Route::view('/rips', 'informes.rips')
             ->name('rips');
+
+        Route::view('/demanda-inducida', 'informes.demanda-inducida')
+            ->name('demanda-inducida');
 
         Route::view('/gestantes', 'informes.gestantes')
             ->name('gestantes');
@@ -109,154 +112,112 @@ Route::middleware(['auth'])->group(function () {
         ->name('settings.appearance');
 });
 
-Route::get('/test-gestantes-corrector', function (
-    GestantesAutoCorrector $corrector
-) {
-    $archivo = storage_path('app/private/pruebas/gestantes.xlsx');
+Route::middleware(['auth', 'verified', EnsureDevelopmentEnvironment::class])->group(function () {
+    Route::get('/test-gestantes-corrector', function (
+        GestantesAutoCorrector $corrector
+    ) {
+        $archivo = storage_path('app/private/pruebas/gestantes.xlsx');
 
-    return $corrector->correct($archivo);
-})->middleware(['auth', 'verified']);
+        return $corrector->correct($archivo);
+    })->middleware(['auth', 'verified']);
 
-Route::get('/test-0256', function (
-    ConfigurableExcelReader $reader,
-    Resolucion0256ValidationService $validator
-) {
-    $path = storage_path('app/private/pruebas/0256.xlsx');
-    $data = $reader->read($path, 'resolucion0256');
+    Route::get('/test-0256', function (
+        ConfigurableExcelReader $reader,
+        Resolucion0256ValidationService $validator
+    ) {
+        $path = storage_path('app/private/pruebas/0256.xlsx');
+        $data = $reader->read($path, 'resolucion0256');
 
-    return response()->json(
-        $validator->validate($data)
-    );
-});
+        return response()->json(
+            $validator->validate($data)
+        );
+    });
 
-Route::get('/debug-0256/workbook', function (
-    ConfigurableExcelDebugger $debugger
-) {
-    $path = storage_path('app/private/pruebas/0256.xlsx');
+    Route::get('/debug-0256/workbook', function (
+        ConfigurableExcelDebugger $debugger
+    ) {
+        $path = storage_path('app/private/pruebas/0256.xlsx');
 
-    return response()->json(
-        $debugger->inspectWorkbook($path),
-        200,
-        [],
-        JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
-    );
-});
+        return response()->json(
+            $debugger->inspectWorkbook($path),
+            200,
+            [],
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+        );
+    });
 
-Route::get('/debug-0256/{sheet}/{row}', function (
-    string $sheet,
-    int $row,
-    ConfigurableExcelDebugger $debugger
-) {
-    $path = storage_path('app/private/pruebas/0256.xlsx');
+    Route::get('/debug-0256/{sheet}/{row}', function (
+        string $sheet,
+        int $row,
+        ConfigurableExcelDebugger $debugger
+    ) {
+        $path = storage_path('app/private/pruebas/0256.xlsx');
 
-    return response()->json(
-        $debugger->inspectRow(
-            path: $path,
-            sheetName: $sheet,
-            row: $row,
-            before: 1,
-            after: 1
-        ),
-        200,
-        [],
-        JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
-    );
-});
+        return response()->json(
+            $debugger->inspectRow(
+                path: $path,
+                sheetName: $sheet,
+                row: $row,
+                before: 1,
+                after: 1
+            ),
+            200,
+            [],
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+        );
+    });
 
-Route::get('/test-resolucion-1552', function (
-    Resolucion1552FileConsistencyService $validator
-) {
-    $path = storage_path(
-        'app/private/pruebas/resolucion1552.zip'
-    );
+    Route::get('/test-resolucion-1552', function (
+        Resolucion1552FileConsistencyService $validator
+    ) {
+        $path = storage_path(
+            'app/private/pruebas/resolucion1552.zip'
+        );
 
-    return response()->json(
-        $validator->validate(
-            zipPath: $path,
-            originalName:
-                'RESOLUCION_1552_123456789012_30062026.zip'
-        )
-    );
-});
-
-Route::get('/test-importador-excel', function (
-    UniversalExcelImporter $importer
-) {
-    $path = storage_path(
-        'app/private/pruebas/SIE-QAC-CIDSMA.xlsx'
-    );
-
-    return response()->json(
-        $importer->inspect($path)
-    );
-});
-
-Route::get('/test-motor-homologacion', function (
-    ExcelAnalyzer $analyzer
-) {
-    $path = storage_path(
-        'app/private/pruebas/SIE-QAC-CIDSMA.xlsx'
-    );
-
-    return response()->json(
-        $analyzer->analyze(
-            path: $path,
-            fieldDefinitions: config(
-                'report_importer.aliases',
-                []
+        return response()->json(
+            $validator->validate(
+                zipPath: $path,
+                originalName: 'RESOLUCION_1552_123456789012_30062026.zip'
             )
-        )
-    );
-});
+        );
+    });
 
-Route::get('/test-import-dataset', function (
-    ImportPipeline $pipeline
-) {
-    $path = storage_path(
-        'app/private/pruebas/SIE-QAC-CIDSMA.xlsx'
-    );
-
-    $result = $pipeline->process(
-        path: $path,
-        originalFilename: 'SIE-QAC-CIDSMA.xlsx',
-        reportType: 'resolucion_1552',
-        fieldDefinitions: config(
-            'report_importer.aliases',
-            []
-        )
-    );
-
-    $dataset = $result['dataset'];
-    $history = $result['history'];
-
-    return response()->json([
-        'history' => [
-            'id' => $history->id,
-            'status' => $history->status,
-            'records_count' => $history->records_count,
-            'missing_fields' => $history->missing_fields,
-        ],
-        'dataset' => $dataset->toArray(),
-    ]);
-});
-
-Route::get(
-    '/test-resolucion-1552-transform',
-    function (
-        ImportPipeline $pipeline,
-        Resolucion1552DatasetTransformer $transformer
+    Route::get('/test-importador-excel', function (
+        UniversalExcelImporter $importer
     ) {
         $path = storage_path(
             'app/private/pruebas/SIE-QAC-CIDSMA.xlsx'
         );
 
-        if (! is_file($path)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se encontró el archivo de prueba.',
-                'path' => $path,
-            ], 404);
-        }
+        return response()->json(
+            $importer->inspect($path)
+        );
+    });
+
+    Route::get('/test-motor-homologacion', function (
+        ExcelAnalyzer $analyzer
+    ) {
+        $path = storage_path(
+            'app/private/pruebas/SIE-QAC-CIDSMA.xlsx'
+        );
+
+        return response()->json(
+            $analyzer->analyze(
+                path: $path,
+                fieldDefinitions: config(
+                    'report_importer.aliases',
+                    []
+                )
+            )
+        );
+    });
+
+    Route::get('/test-import-dataset', function (
+        ImportPipeline $pipeline
+    ) {
+        $path = storage_path(
+            'app/private/pruebas/SIE-QAC-CIDSMA.xlsx'
+        );
 
         $result = $pipeline->process(
             path: $path,
@@ -272,71 +233,115 @@ Route::get(
         $history = $result['history'];
 
         return response()->json([
-            'success' => true,
             'history' => [
                 'id' => $history->id,
                 'status' => $history->status,
+                'records_count' => $history->records_count,
+                'missing_fields' => $history->missing_fields,
             ],
-            'profile' => $dataset->profile === null
-                ? null
-                : [
-                    'id' => $dataset->profile->id,
-                    'name' => $dataset->profile->name,
-                    'slug' => $dataset->profile->slug,
-                ],
-            'transformation' => $transformer->toArray($dataset),
+            'dataset' => $dataset->toArray(),
         ]);
-    }
-);
+    });
 
-Route::get(
-    '/test-resolucion-1552-validation',
-    function (
-        ImportPipeline $pipeline,
-        Resolucion1552DatasetTransformer $transformer,
-        Resolucion1552Validator $validator
-    ) {
-        $path = storage_path(
-            'app/private/pruebas/SIE-QAC-CIDSMA.xlsx'
-        );
+    Route::get(
+        '/test-resolucion-1552-transform',
+        function (
+            ImportPipeline $pipeline,
+            Resolucion1552DatasetTransformer $transformer
+        ) {
+            $path = storage_path(
+                'app/private/pruebas/SIE-QAC-CIDSMA.xlsx'
+            );
 
-        if (! is_file($path)) {
+            if (! is_file($path)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró el archivo de prueba.',
+                    'path' => $path,
+                ], 404);
+            }
+
+            $result = $pipeline->process(
+                path: $path,
+                originalFilename: 'SIE-QAC-CIDSMA.xlsx',
+                reportType: 'resolucion_1552',
+                fieldDefinitions: config(
+                    'report_importer.aliases',
+                    []
+                )
+            );
+
+            $dataset = $result['dataset'];
+            $history = $result['history'];
+
             return response()->json([
-                'success' => false,
-                'message' => 'No se encontró el archivo de prueba.',
-                'path' => $path,
-            ], 404);
+                'success' => true,
+                'history' => [
+                    'id' => $history->id,
+                    'status' => $history->status,
+                ],
+                'profile' => $dataset->profile === null
+                    ? null
+                    : [
+                        'id' => $dataset->profile->id,
+                        'name' => $dataset->profile->name,
+                        'slug' => $dataset->profile->slug,
+                    ],
+                'transformation' => $transformer->toArray($dataset),
+            ]);
         }
+    );
 
-        $pipelineResult = $pipeline->process(
-            path: $path,
-            originalFilename: 'SIE-QAC-CIDSMA.xlsx',
-            reportType: 'resolucion_1552',
-            fieldDefinitions: config(
-                'report_importer.aliases',
-                []
-            )
-        );
+    Route::get(
+        '/test-resolucion-1552-validation',
+        function (
+            ImportPipeline $pipeline,
+            Resolucion1552DatasetTransformer $transformer,
+            Resolucion1552Validator $validator
+        ) {
+            $path = storage_path(
+                'app/private/pruebas/SIE-QAC-CIDSMA.xlsx'
+            );
 
-        $transformation = $transformer->transform(
-            $pipelineResult['dataset']
-        );
+            if (! is_file($path)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró el archivo de prueba.',
+                    'path' => $path,
+                ], 404);
+            }
 
-        return response()->json([
-            'success' => true,
-            'history' => [
-                'id' => $pipelineResult['history']->id,
-                'status' => $pipelineResult['history']->status,
-            ],
-            'transformation' => [
-                'statistics' => $transformation['statistics'],
-            ],
-            'validation' => $validator->toArray(
-                $transformation['records']
-            ),
-        ]);
-    }
-);
+            $pipelineResult = $pipeline->process(
+                path: $path,
+                originalFilename: 'SIE-QAC-CIDSMA.xlsx',
+                reportType: 'resolucion_1552',
+                fieldDefinitions: config(
+                    'report_importer.aliases',
+                    []
+                )
+            );
+
+            $transformation = $transformer->transform(
+                $pipelineResult['dataset']
+            );
+
+            return response()->json([
+                'success' => true,
+                'history' => [
+                    'id' => $pipelineResult['history']->id,
+                    'status' => $pipelineResult['history']->status,
+                ],
+                'transformation' => [
+                    'statistics' => $transformation['statistics'],
+                ],
+                'validation' => $validator->toArray(
+                    $transformation['records']
+                ),
+            ]);
+        }
+    );
+});
+
 Route::view('/informes/resolucion-1604/dusakawi', 'informes.resolucion-1604-dusakawi')
     ->middleware(['auth', 'verified'])
     ->name('informes.resolucion-1604.dusakawi');
@@ -350,5 +355,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('informes.gestante-mensual');
 });
 
-require __DIR__ . '/test-resolucion-1552-export.php';
-require __DIR__ . '/auth.php';
+Route::middleware(['auth', 'verified', EnsureDevelopmentEnvironment::class])->group(function () {
+    require __DIR__.'/test-resolucion-1552-export.php';
+});
+require __DIR__.'/auth.php';

@@ -104,6 +104,16 @@
                 'icon' => 'database',
             ],
             [
+                'name' => 'Demanda inducida',
+                'group' => 'demanda',
+                'description' => 'Procesa los informes de demanda inducida y revisa sus devoluciones.',
+                'route' => 'informes.demanda-inducida',
+                'status' => 'Activo',
+                'enabled' => true,
+                'accent' => 'blue',
+                'icon' => 'document',
+            ],
+            [
                 'name' => 'Resolución 4505',
                 'group' => 'proximamente',
                 'description' => 'Validación y control de calidad de reportes de promoción y prevención.',
@@ -155,7 +165,7 @@
             ],
         ];
 
-        $groupOrder = ['202', '0256', '1604', '1552', 'cronicos', 'gestantes', 'rips', 'proximamente'];
+        $groupOrder = ['202', '0256', '1604', '1552', 'cronicos', 'gestantes', 'rips', 'demanda', 'proximamente'];
 
         $groupLabels = [
             '202' => [
@@ -189,6 +199,10 @@
             'proximamente' => [
                 'title' => 'Próximamente',
                 'description' => 'Módulos que se integrarán en las siguientes etapas.',
+            ],
+            'demanda' => [
+                'title' => 'Demanda inducida',
+                'description' => 'Procesamiento de informes y corrección de devoluciones.',
             ],
         ];
 
