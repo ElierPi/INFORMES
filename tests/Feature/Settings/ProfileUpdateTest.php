@@ -3,11 +3,11 @@
 use App\Models\User;
 use Livewire\Volt\Volt;
 
-test('profile page is displayed', function () {
+test('settings pages are displayed', function (string $path) {
     $this->actingAs($user = User::factory()->create());
 
-    $this->get('/settings/profile')->assertOk();
-});
+    $this->get($path)->assertOk();
+})->with(['/settings/profile', '/settings/password', '/settings/appearance']);
 
 test('profile information can be updated', function () {
     $user = User::factory()->create();

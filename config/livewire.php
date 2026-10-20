@@ -44,7 +44,7 @@ return [
     |
     */
 
-    'layout' => 'components.layouts.app',
+    'component_layout' => 'components.layouts.app',
 
     /*
     |---------------------------------------------------------------------------
@@ -128,42 +128,42 @@ return [
     |
     */
 
-'temporary_file_upload' => [
-    'disk' => null,
+    'temporary_file_upload' => [
+        'disk' => null,
 
-    'rules' => [
-        'required',
-        'file',
-        'max:51200',
+        'rules' => [
+            'required',
+            'file',
+            'max:51200',
+        ],
+
+        'directory' => null,
+
+        'middleware' => null,
+
+        'preview_mimes' => [
+            'png',
+            'gif',
+            'bmp',
+            'svg',
+            'wav',
+            'mp4',
+            'mov',
+            'avi',
+            'wmv',
+            'mp3',
+            'm4a',
+            'jpg',
+            'jpeg',
+            'mpga',
+            'webp',
+            'wma',
+        ],
+
+        'max_upload_time' => 10,
+
+        'cleanup' => true,
     ],
-
-    'directory' => null,
-
-    'middleware' => null,
-
-    'preview_mimes' => [
-        'png',
-        'gif',
-        'bmp',
-        'svg',
-        'wav',
-        'mp4',
-        'mov',
-        'avi',
-        'wmv',
-        'mp3',
-        'm4a',
-        'jpg',
-        'jpeg',
-        'mpga',
-        'webp',
-        'wma',
-    ],
-
-    'max_upload_time' => 10,
-
-    'cleanup' => true,
-],
 
     /*
     |---------------------------------------------------------------------------
@@ -297,7 +297,7 @@ return [
     */
 
     'payload' => [
-        'max_size' => 30720 * 30720,   // 30MB - maximum request payload size in bytes
+        'max_size' => 30 * 1024 * 1024,   // 30MB - maximum request payload size in bytes
         'max_nesting_depth' => 10,   // Maximum depth of dot-notation property paths
         'max_calls' => 50,           // Maximum method calls per request
         'max_components' => 200,     // Maximum components per batch request
