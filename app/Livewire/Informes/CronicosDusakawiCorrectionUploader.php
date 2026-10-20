@@ -5,6 +5,7 @@ namespace App\Livewire\Informes;
 use App\Services\CronicosDusakawi\CronicosDusakawiCorrectionService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -16,16 +17,28 @@ final class CronicosDusakawiCorrectionUploader extends Component
     use WithFileUploads;
 
     public $archivoInforme = null;
+
     public $archivoErrores = null;
+
     public bool $procesando = false;
+
     public bool $generado = false;
+
     public ?string $mensaje = null;
+
     public ?string $error = null;
+
     public array $resumen = [];
+
     public array $auditoria = [];
+
     public array $pendientes = [];
+
+    #[Locked]
     public ?string $outputPath = null;
+
     public ?string $outputName = null;
+
     public bool $eliminarDuplicados = false;
 
     public function corregir(CronicosDusakawiCorrectionService $service): void
@@ -101,6 +114,7 @@ final class CronicosDusakawiCorrectionUploader extends Component
     {
         if (! $this->generado || ! is_string($this->outputPath) || ! is_file($this->outputPath)) {
             $this->error = 'El Excel corregido ya no está disponible. Procesa nuevamente los archivos.';
+
             return null;
         }
 

@@ -7,6 +7,7 @@ use App\Services\Sigires\Cronicos\SigiresCronicosReviewedMatrixService;
 use App\Support\Livewire\HandlesTemporaryUploads;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -15,8 +16,8 @@ use Throwable;
 
 final class SigiresCronicosUploader extends Component
 {
-    use WithFileUploads;
     use HandlesTemporaryUploads;
+    use WithFileUploads;
 
     public $baseUsuarios = null;
 
@@ -47,10 +48,13 @@ final class SigiresCronicosUploader extends Component
     /** @var array<int, array<string, mixed>> */
     public array $pacientes = [];
 
+    #[Locked]
     public ?string $matrizPath = null;
 
+    #[Locked]
     public ?string $txtPath = null;
 
+    #[Locked]
     public ?string $zipPath = null;
 
     public ?string $generatedFileName = null;
@@ -78,28 +82,17 @@ final class SigiresCronicosUploader extends Component
     protected function messages(): array
     {
         return [
-            'baseUsuarios.required' =>
-                'Selecciona la base regional de usuarios.',
-            'baseUsuarios.mimes' =>
-                'La base regional debe estar en formato XLSX o XLS.',
-            'baseUsuarios.max' =>
-                'La base regional no puede superar los 40 MB.',
-            'historiasClinicas.required' =>
-                'Selecciona el ZIP de historias clínicas.',
-            'historiasClinicas.mimes' =>
-                'Las historias clínicas deben estar comprimidas en un archivo ZIP.',
-            'historiasClinicas.max' =>
-                'El ZIP de historias clínicas no puede superar los 150 MB.',
-            'fechaCorte.required' =>
-                'Selecciona la fecha de corte.',
-            'fechaCorte.date_format' =>
-                'La fecha de corte debe tener el formato AAAA-MM-DD.',
-            'codigoEapb.required' =>
-                'Ingresa el código de la EAPB.',
-            'codigoEapb.regex' =>
-                'El código EAPB debe contener entre 1 y 6 letras o números.',
-            'procedimiento.in' =>
-                'El procedimiento seleccionado no es válido.',
+            'baseUsuarios.required' => 'Selecciona la base regional de usuarios.',
+            'baseUsuarios.mimes' => 'La base regional debe estar en formato XLSX o XLS.',
+            'baseUsuarios.max' => 'La base regional no puede superar los 40 MB.',
+            'historiasClinicas.required' => 'Selecciona el ZIP de historias clínicas.',
+            'historiasClinicas.mimes' => 'Las historias clínicas deben estar comprimidas en un archivo ZIP.',
+            'historiasClinicas.max' => 'El ZIP de historias clínicas no puede superar los 150 MB.',
+            'fechaCorte.required' => 'Selecciona la fecha de corte.',
+            'fechaCorte.date_format' => 'La fecha de corte debe tener el formato AAAA-MM-DD.',
+            'codigoEapb.required' => 'Ingresa el código de la EAPB.',
+            'codigoEapb.regex' => 'El código EAPB debe contener entre 1 y 6 letras o números.',
+            'procedimiento.in' => 'El procedimiento seleccionado no es válido.',
         ];
     }
 

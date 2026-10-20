@@ -2,10 +2,11 @@
 
 namespace App\Livewire\Informes;
 
-use App\Services\DemandaInducida\DemandaInducidaPrestadorRepository;
 use App\Services\DemandaInducida\DemandaInducidaErrorCorrectionService;
+use App\Services\DemandaInducida\DemandaInducidaPrestadorRepository;
 use App\Services\DemandaInducida\DemandaInducidaService;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -26,16 +27,25 @@ class DemandaInducidaUploader extends Component
     public array $prestadores = [];
 
     public bool $mostrarNuevoPrestador = false;
+
     public string $nuevoPrestadorNombre = '';
+
     public string $nuevoPrestadorCodigo = '';
 
     public $zipRechazado;
+
     public $archivoErrores;
+
+    #[Locked]
     public ?array $correccionResultado = null;
+
     public ?string $correccionErrorMessage = null;
 
     public ?string $errorMessage = null;
+
     public ?string $prestadorMessage = null;
+
+    #[Locked]
     public ?array $resultado = null;
 
     public function mount(
@@ -47,8 +57,7 @@ class DemandaInducidaUploader extends Component
         if (
             ! collect($this->prestadores)
                 ->contains(
-                    fn ($item) =>
-                        ($item['code'] ?? '')
+                    fn ($item) => ($item['code'] ?? '')
                         === '444300063502'
                 )
             && $this->prestadores !== []
@@ -66,6 +75,7 @@ class DemandaInducidaUploader extends Component
     ): void {
         if ($value === '__nuevo__') {
             $this->mostrarNuevoPrestador = true;
+
             return;
         }
 
@@ -77,10 +87,8 @@ class DemandaInducidaUploader extends Component
         DemandaInducidaPrestadorRepository $repository
     ): void {
         $this->validate([
-            'nuevoPrestadorNombre' =>
-                ['required','string','max:120'],
-            'nuevoPrestadorCodigo' =>
-                ['required','regex:/^\d{12}$/'],
+            'nuevoPrestadorNombre' => ['required', 'string', 'max:120'],
+            'nuevoPrestadorCodigo' => ['required', 'regex:/^\d{12}$/'],
         ]);
 
         try {
@@ -132,10 +140,8 @@ class DemandaInducidaUploader extends Component
                 'regex:/^\d{12}$/',
             ],
         ], [
-            'archivo.required' =>
-                'Selecciona el Excel de Demanda inducida.',
-            'archivo.mimes' =>
-                'El archivo debe estar en formato XLSX.',
+            'archivo.required' => 'Selecciona el Excel de Demanda inducida.',
+            'archivo.mimes' => 'El archivo debe estar en formato XLSX.',
         ]);
 
         try {
@@ -240,7 +246,7 @@ class DemandaInducidaUploader extends Component
                 Storage::disk('local')->path($zipStored),
                 Storage::disk('local')->path($logStored)
             );
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->correccionErrorMessage =
                 'No fue posible corregir la devolución SIGIRES: '
                 .$exception->getMessage();
@@ -255,6 +261,7 @@ class DemandaInducidaUploader extends Component
         ) {
             $this->correccionErrorMessage =
                 'Primero debes analizar y corregir el ZIP.';
+
             return null;
         }
 
@@ -272,6 +279,7 @@ class DemandaInducidaUploader extends Component
         ) {
             $this->correccionErrorMessage =
                 'Primero debes analizar y corregir el ZIP.';
+
             return null;
         }
 

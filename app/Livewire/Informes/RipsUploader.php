@@ -4,6 +4,7 @@ namespace App\Livewire\Informes;
 
 use App\Services\Rips\RipsFamiliarMonthlyGenerator;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -19,14 +20,19 @@ class RipsUploader extends Component
      * Copia estable del archivo fuente.
      * Después de guardarlo ya no dependemos de livewire-tmp.
      */
+    #[Locked]
     public ?string $archivoFuentePath = null;
 
     public ?string $archivoFuenteNombre = null;
 
     public string $periodo = '2025-06';
 
+    #[Locked]
     public ?array $resultado = null;
+
+    #[Locked]
     public ?array $resultadoLote = null;
+
     public ?string $errorMessage = null;
 
     public function updatedArchivoFuente(): void
