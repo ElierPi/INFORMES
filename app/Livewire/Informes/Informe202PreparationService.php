@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Services\Informe202;
+namespace App\Livewire\Informes;
 
+use App\Services\Informe202\Resolution202ExcelReader;
 use RuntimeException;
 
 final class Informe202PreparationService
@@ -12,8 +13,7 @@ final class Informe202PreparationService
 
     public function __construct(
         private readonly Resolution202ExcelReader $excelReader
-    ) {
-    }
+    ) {}
 
     /**
      * Prepara un archivo de la Resolución 202 sin bloquearlo por reglas
@@ -92,8 +92,7 @@ final class Informe202PreparationService
                     sourceLine: $sourceLine,
                     field: 'Estructura',
                     value: null,
-                    message:
-                        'No fue posible interpretar el registro.'
+                    message: 'No fue posible interpretar el registro.'
                 );
 
                 continue;
@@ -138,8 +137,7 @@ final class Informe202PreparationService
                     sourceLine: $sourceLine,
                     variable: 0,
                     value: $normalized[0],
-                    message:
-                        'El tipo de registro se ajustó automáticamente a 2.'
+                    message: 'El tipo de registro se ajustó automáticamente a 2.'
                 );
 
                 $normalized[0] = '2';
@@ -176,26 +174,20 @@ final class Informe202PreparationService
 
             'warnings' => $warnings,
 
-            'detected_header' =>
-                $source['detected_header'] ?? null,
+            'detected_header' => $source['detected_header'] ?? null,
 
             'summary' => [
                 'destination' => $destination,
 
-                'records_count' =>
-                    count($records),
+                'records_count' => count($records),
 
-                'valid_records_count' =>
-                    count($normalizedRecords),
+                'valid_records_count' => count($normalizedRecords),
 
-                'invalid_records_count' =>
-                    count($invalidRecordNumbers),
+                'invalid_records_count' => count($invalidRecordNumbers),
 
-                'errors_count' =>
-                    count($errors),
+                'errors_count' => count($errors),
 
-                'warnings_count' =>
-                    count($warnings),
+                'warnings_count' => count($warnings),
 
                 'separator' => '|',
 
@@ -203,8 +195,7 @@ final class Informe202PreparationService
 
                 'fields_per_record' => 119,
 
-                'includes_type_1' =>
-                    $destination === self::DESTINATION_DUSAKAWI,
+                'includes_type_1' => $destination === self::DESTINATION_DUSAKAWI,
             ],
         ];
     }
@@ -276,8 +267,7 @@ final class Informe202PreparationService
             $lines[] = implode(
                 '|',
                 array_map(
-                    fn (mixed $value): string =>
-                        $this->normalizeValue($value),
+                    fn (mixed $value): string => $this->normalizeValue($value),
                     $values
                 )
             );
@@ -336,11 +326,9 @@ final class Informe202PreparationService
 
         return array_map(
             static fn (array $record): array => [
-                'excel_row' =>
-                    $record['excel_row'] ?? null,
+                'excel_row' => $record['excel_row'] ?? null,
 
-                'values' =>
-                    $record['variables'] ?? [],
+                'values' => $record['variables'] ?? [],
             ],
             $result['records'] ?? []
         );
@@ -412,17 +400,13 @@ final class Informe202PreparationService
 
                 $detectedHeader = [
                     'type' => '1',
-                    'eps_code' =>
-                        trim((string) ($values[1] ?? '')),
+                    'eps_code' => trim((string) ($values[1] ?? '')),
 
-                    'start_date' =>
-                        trim((string) ($values[2] ?? '')),
+                    'start_date' => trim((string) ($values[2] ?? '')),
 
-                    'end_date' =>
-                        trim((string) ($values[3] ?? '')),
+                    'end_date' => trim((string) ($values[3] ?? '')),
 
-                    'declared_records' =>
-                        trim((string) ($values[4] ?? '')),
+                    'declared_records' => trim((string) ($values[4] ?? '')),
 
                     'source_line' => $sourceLine,
                 ];
@@ -438,8 +422,7 @@ final class Informe202PreparationService
             $records[] = [
                 'source_line' => $sourceLine,
                 'values' => array_map(
-                    static fn (string $value): string =>
-                        trim($value),
+                    static fn (string $value): string => trim($value),
                     $values
                 ),
             ];
