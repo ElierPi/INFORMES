@@ -6,6 +6,7 @@ use App\Services\Resolucion1552\Resolucion1552Exporter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use JsonSerializable;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -19,9 +20,11 @@ final class Resolucion1552Uploader extends Component
     public $archivo = null;
 
     public bool $procesando = false;
+
     public bool $generado = false;
 
     public ?string $mensaje = null;
+
     public ?string $error = null;
 
     /** @var array<string, mixed> */
@@ -33,9 +36,14 @@ final class Resolucion1552Uploader extends Component
     /** @var array<int, array<string, mixed>> */
     public array $advertencias = [];
 
+    #[Locked]
     public ?string $zipPath = null;
+
     public ?string $zipName = null;
+
+    #[Locked]
     public ?string $txtPath = null;
+
     public ?string $txtName = null;
 
     protected function rules(): array
@@ -53,14 +61,10 @@ final class Resolucion1552Uploader extends Component
     protected function messages(): array
     {
         return [
-            'archivo.required' =>
-                'Selecciona el archivo Excel de la Resolución 1552.',
-            'archivo.file' =>
-                'El archivo seleccionado no es válido.',
-            'archivo.mimes' =>
-                'El archivo debe tener formato XLSX o XLS.',
-            'archivo.max' =>
-                'El archivo no puede superar los 30 MB.',
+            'archivo.required' => 'Selecciona el archivo Excel de la Resolución 1552.',
+            'archivo.file' => 'El archivo seleccionado no es válido.',
+            'archivo.mimes' => 'El archivo debe tener formato XLSX o XLS.',
+            'archivo.max' => 'El archivo no puede superar los 30 MB.',
         ];
     }
 
@@ -93,13 +97,13 @@ final class Resolucion1552Uploader extends Component
 
             $folder =
                 'private/uploads/resolucion1552/'
-                . Str::uuid();
+                .Str::uuid();
 
             Storage::disk('local')->makeDirectory($folder);
 
             $storedRelativePath = $this->archivo->storeAs(
                 $folder,
-                'entrada.' . $extension,
+                'entrada.'.$extension,
                 'local'
             );
 
@@ -211,7 +215,7 @@ final class Resolucion1552Uploader extends Component
 
             $this->error =
                 'No fue posible procesar el archivo: '
-                . $exception->getMessage();
+                .$exception->getMessage();
             $this->mensaje = null;
         } finally {
             $this->procesando = false;
@@ -292,7 +296,7 @@ final class Resolucion1552Uploader extends Component
     }
 
     /**
-     * @param iterable<mixed> $issues
+     * @param  iterable<mixed>  $issues
      * @return array<int, array<string, mixed>>
      */
     private function normalizeIssues(
@@ -303,6 +307,7 @@ final class Resolucion1552Uploader extends Component
         foreach ($issues as $issue) {
             if (is_array($issue)) {
                 $normalized[] = $issue;
+
                 continue;
             }
 

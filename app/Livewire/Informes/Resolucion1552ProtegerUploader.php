@@ -6,6 +6,7 @@ use App\Models\IpsNitGuardado;
 use App\Services\Resolucion1552\Resolucion1552ProtegerExporter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -17,21 +18,39 @@ final class Resolucion1552ProtegerUploader extends Component
     use WithFileUploads;
 
     public $archivo = null;
+
     public string $periodo = '';
+
     public string $nitReceptor = '900144397';
+
     public ?int $ipsNitSeleccionado = null;
+
     public string $ipsNombre = '';
+
     public array $ipsNitsGuardados = [];
+
     public bool $procesando = false;
+
     public bool $generado = false;
+
     public ?string $mensaje = null;
+
     public ?string $error = null;
+
     public array $resumen = [];
+
     public array $erroresValidacion = [];
+
     public array $advertencias = [];
+
+    #[Locked]
     public ?string $txtPath = null;
+
     public ?string $txtName = null;
+
+    #[Locked]
     public ?string $zipPath = null;
+
     public ?string $zipName = null;
 
     public function mount(): void
@@ -54,6 +73,7 @@ final class Resolucion1552ProtegerUploader extends Component
             $this->cargarIpsNitsGuardados();
             $this->ipsNitSeleccionado = $registro->id;
             $this->nitReceptor = $registro->nit;
+
             return;
         }
 
@@ -72,6 +92,7 @@ final class Resolucion1552ProtegerUploader extends Component
             $this->ipsNombre = '';
             $this->nitReceptor = '';
             $this->resetValidation(['nitReceptor', 'ipsNombre']);
+
             return;
         }
 
@@ -81,6 +102,7 @@ final class Resolucion1552ProtegerUploader extends Component
 
         if ($registro === null) {
             $this->ipsNitSeleccionado = null;
+
             return;
         }
 
@@ -126,11 +148,12 @@ final class Resolucion1552ProtegerUploader extends Component
 
         if ($duplicado) {
             $this->addError('nitReceptor', 'Ese NIT ya está guardado en otra IPS. Selecciónalo desde la lista.');
+
             return;
         }
 
         if ($registro === null) {
-            $registro = new IpsNitGuardado();
+            $registro = new IpsNitGuardado;
             $registro->user_id = auth()->id();
         }
 
@@ -197,9 +220,9 @@ final class Resolucion1552ProtegerUploader extends Component
             }
 
             $extension = strtolower($this->archivo->getClientOriginalExtension());
-            $folder = 'private/uploads/resolucion1552-proteger/' . Str::uuid();
+            $folder = 'private/uploads/resolucion1552-proteger/'.Str::uuid();
             Storage::disk('local')->makeDirectory($folder);
-            $relativePath = $this->archivo->storeAs($folder, 'entrada.' . $extension, 'local');
+            $relativePath = $this->archivo->storeAs($folder, 'entrada.'.$extension, 'local');
             $path = Storage::disk('local')->path((string) $relativePath);
             $result = $exporter->export($path, $this->periodo, $this->nitReceptor);
             $validation = $result['validation'] ?? [];
@@ -220,6 +243,7 @@ final class Resolucion1552ProtegerUploader extends Component
             if (! ($result['success'] ?? false)) {
                 $this->error = 'El Excel contiene errores que deben corregirse antes de generar el ZIP.';
                 $this->mensaje = null;
+
                 return;
             }
 
@@ -232,7 +256,7 @@ final class Resolucion1552ProtegerUploader extends Component
             $this->mensaje = 'El TXT y el ZIP de la Resolución 1552 de Proteger fueron generados correctamente.';
         } catch (Throwable $exception) {
             report($exception);
-            $this->error = 'No fue posible procesar el archivo: ' . $exception->getMessage();
+            $this->error = 'No fue posible procesar el archivo: '.$exception->getMessage();
             $this->mensaje = null;
         } finally {
             $this->procesando = false;
@@ -243,6 +267,7 @@ final class Resolucion1552ProtegerUploader extends Component
     {
         if (! $this->generado || ! is_string($this->zipPath) || ! is_file($this->zipPath)) {
             $this->error = 'El ZIP ya no está disponible. Genera nuevamente el informe.';
+
             return null;
         }
 
@@ -257,6 +282,7 @@ final class Resolucion1552ProtegerUploader extends Component
     {
         if (! $this->generado || ! is_string($this->txtPath) || ! is_file($this->txtPath)) {
             $this->error = 'El TXT ya no está disponible. Genera nuevamente el informe.';
+
             return null;
         }
 

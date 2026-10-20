@@ -8,6 +8,7 @@ use App\Services\Informe202\Resolution202ExcelReader;
 use App\Services\Informe202\Resolution202TxtExporter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -54,8 +55,10 @@ class Informe202Uploader extends Component
 
     public bool $analizado = false;
 
+    #[Locked]
     public ?string $archivoCorregido = null;
 
+    #[Locked]
     public ?string $archivoTxtCorregido = null;
 
     public ?string $nombreTxtCorregido = null;
@@ -108,23 +111,17 @@ class Informe202Uploader extends Component
     protected function messages(): array
     {
         return [
-            'fechaCorte.required' =>
-                'Selecciona la fecha de corte del informe.',
+            'fechaCorte.required' => 'Selecciona la fecha de corte del informe.',
 
-            'fechaCorte.date_format' =>
-                'La fecha de corte debe tener el formato AAAA-MM-DD.',
+            'fechaCorte.date_format' => 'La fecha de corte debe tener el formato AAAA-MM-DD.',
 
-            'nitProteger.required_if' =>
-                'Escribe el NIT que debe llevar el archivo TXT de Proteger.',
+            'nitProteger.required_if' => 'Escribe el NIT que debe llevar el archivo TXT de Proteger.',
 
-            'nitProteger.regex' =>
-                'El NIT de Proteger debe contener entre 9 y 12 dígitos, sin puntos ni guiones.',
+            'nitProteger.regex' => 'El NIT de Proteger debe contener entre 9 y 12 dígitos, sin puntos ni guiones.',
 
-            'archivoInforme.required' =>
-                'Selecciona el Excel original de la Resolución 202.',
+            'archivoInforme.required' => 'Selecciona el Excel original de la Resolución 202.',
 
-            'archivoErrores.required' =>
-                'Selecciona el reporte de errores de la EPS.',
+            'archivoErrores.required' => 'Selecciona el reporte de errores de la EPS.',
         ];
     }
 
@@ -178,7 +175,7 @@ class Informe202Uploader extends Component
             /*
              * Cada procesamiento queda en una carpeta independiente.
              */
-            $folder = 'informes-202/' . Str::uuid();
+            $folder = 'informes-202/'.Str::uuid();
 
             Storage::disk('local')->makeDirectory($folder);
 
@@ -190,13 +187,13 @@ class Informe202Uploader extends Component
             $originalRelativePath = $this->guardarTemporal(
                 archivo: $this->archivoInforme,
                 folder: $folder,
-                filename: 'original.' . $extensionInforme
+                filename: 'original.'.$extensionInforme
             );
 
             $errorRelativePath = $this->guardarTemporal(
                 archivo: $this->archivoErrores,
                 folder: $folder,
-                filename: 'errores.' . $extensionErrores
+                filename: 'errores.'.$extensionErrores
             );
 
             $correctedRelativePath =
@@ -214,14 +211,14 @@ class Informe202Uploader extends Component
             if (! is_file($originalPath)) {
                 throw new \RuntimeException(
                     'No fue posible guardar el Excel original. '
-                    . 'Vuelve a seleccionarlo e inténtalo nuevamente.'
+                    .'Vuelve a seleccionarlo e inténtalo nuevamente.'
                 );
             }
 
             if (! is_file($errorPath)) {
                 throw new \RuntimeException(
                     'No fue posible guardar el reporte de errores. '
-                    . 'Vuelve a seleccionarlo e inténtalo nuevamente.'
+                    .'Vuelve a seleccionarlo e inténtalo nuevamente.'
                 );
             }
 
@@ -241,22 +238,17 @@ class Informe202Uploader extends Component
                 $this->registrosLeidos
             )
                 ->filter(
-                    fn (array $record) =>
-                        ! empty($record['age_error'])
+                    fn (array $record) => ! empty($record['age_error'])
                 )
                 ->map(
                     fn (array $record) => [
-                        'registro' =>
-                            $record['record_number'],
+                        'registro' => $record['record_number'],
 
-                        'fila_excel' =>
-                            $record['excel_row'],
+                        'fila_excel' => $record['excel_row'],
 
-                        'fecha_nacimiento' =>
-                            $record['birth_date'],
+                        'fecha_nacimiento' => $record['birth_date'],
 
-                        'detalle' =>
-                            $record['age_error'],
+                        'detalle' => $record['age_error'],
                     ]
                 )
                 ->values()
@@ -274,7 +266,7 @@ class Informe202Uploader extends Component
             if ($this->errores === []) {
                 throw new \RuntimeException(
                     'No se encontraron errores reconocibles '
-                    . 'en el reporte de la EPS.'
+                    .'en el reporte de la EPS.'
                 );
             }
 
@@ -338,32 +330,24 @@ class Informe202Uploader extends Component
             }
 
             $this->resumen = [
-                'registros_leidos' =>
-                    $excelResult['total_records'],
+                'registros_leidos' => $excelResult['total_records'],
 
-                'errores_ya_validos' =>
-                    count($validos),
+                'errores_ya_validos' => count($validos),
 
-                'errores_reportados' =>
-                    count($this->errores),
+                'errores_reportados' => count($this->errores),
 
-                'registros_afectados' =>
-                    collect($this->errores)
-                        ->pluck('fila')
-                        ->unique()
-                        ->count(),
+                'registros_afectados' => collect($this->errores)
+                    ->pluck('fila')
+                    ->unique()
+                    ->count(),
 
-                'celdas_corregidas' =>
-                    count($this->correcciones),
+                'celdas_corregidas' => count($this->correcciones),
 
-                'pendientes' =>
-                    count($this->pendientes),
+                'pendientes' => count($this->pendientes),
 
-                'errores_edad' =>
-                    count($this->erroresEdad),
+                'errores_edad' => count($this->erroresEdad),
 
-                'txt_generado' =>
-                    $this->archivoTxtCorregido !== null,
+                'txt_generado' => $this->archivoTxtCorregido !== null,
             ];
 
             $this->mensajeProceso =
@@ -375,7 +359,7 @@ class Informe202Uploader extends Component
 
             $this->errorProceso =
                 'No fue posible procesar los archivos: '
-                . $exception->getMessage();
+                .$exception->getMessage();
 
             $this->addError(
                 'archivoInforme',
@@ -442,16 +426,15 @@ class Informe202Uploader extends Component
             $this->nombreTxtCorregido
                 ?: (
                     preg_replace('/\D+/', '', $this->nitProteger)
-                    . '_'
-                    . date(
+                    .'_'
+                    .date(
                         'mY',
                         strtotime($this->fechaCorte)
                     )
-                    . '.txt'
+                    .'.txt'
                 ),
             [
-                'Content-Type' =>
-                    'text/plain; charset=UTF-8',
+                'Content-Type' => 'text/plain; charset=UTF-8',
             ]
         );
     }
@@ -505,7 +488,7 @@ class Informe202Uploader extends Component
         if (! $archivo instanceof TemporaryUploadedFile) {
             throw new \RuntimeException(
                 "El {$nombre} no es un archivo temporal válido. "
-                . 'Vuelve a seleccionarlo.'
+                .'Vuelve a seleccionarlo.'
             );
         }
 
@@ -524,7 +507,7 @@ class Informe202Uploader extends Component
 
             throw new \RuntimeException(
                 "El {$nombre} temporal dejó de estar disponible. "
-                . 'Vuelve a seleccionarlo y pulsa Analizar nuevamente.'
+                .'Vuelve a seleccionarlo y pulsa Analizar nuevamente.'
             );
         }
     }

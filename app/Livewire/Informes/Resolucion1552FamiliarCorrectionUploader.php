@@ -5,6 +5,7 @@ namespace App\Livewire\Informes;
 use App\Services\Resolucion1552\Resolucion1552FamiliarCorrectionService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -16,15 +17,26 @@ final class Resolucion1552FamiliarCorrectionUploader extends Component
     use WithFileUploads;
 
     public $archivoInforme = null;
+
     public $archivoErrores = null;
+
     public bool $procesando = false;
+
     public bool $generado = false;
+
     public ?string $mensaje = null;
+
     public ?string $error = null;
+
     public array $resumen = [];
+
     public array $auditoria = [];
+
     public array $pendientes = [];
+
+    #[Locked]
     public ?string $outputPath = null;
+
     public ?string $outputName = null;
 
     protected function rules(): array
@@ -49,7 +61,7 @@ final class Resolucion1552FamiliarCorrectionUploader extends Component
                 throw new RuntimeException('Selecciona nuevamente el informe y el archivo de errores.');
             }
 
-            $folder = 'private/uploads/resolucion1552-familiar-correccion/' . Str::uuid();
+            $folder = 'private/uploads/resolucion1552-familiar-correccion/'.Str::uuid();
             Storage::disk('local')->makeDirectory($folder);
             $originalReportName = basename($this->archivoInforme->getClientOriginalName());
             $reportRelative = $this->archivoInforme->storeAs($folder, $originalReportName, 'local');
@@ -79,7 +91,7 @@ final class Resolucion1552FamiliarCorrectionUploader extends Component
                 : 'El TXT fue generado, pero quedaron errores para revisión manual.';
         } catch (Throwable $exception) {
             report($exception);
-            $this->error = 'No fue posible corregir el informe: ' . $exception->getMessage();
+            $this->error = 'No fue posible corregir el informe: '.$exception->getMessage();
             $this->mensaje = null;
         } finally {
             $this->procesando = false;
@@ -90,6 +102,7 @@ final class Resolucion1552FamiliarCorrectionUploader extends Component
     {
         if (! $this->generado || ! is_string($this->outputPath) || ! is_file($this->outputPath)) {
             $this->error = 'El TXT corregido ya no está disponible. Procesa nuevamente los archivos.';
+
             return null;
         }
 

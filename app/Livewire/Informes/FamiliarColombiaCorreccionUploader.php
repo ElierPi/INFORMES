@@ -6,6 +6,7 @@ use App\Services\Informe202\FamiliarColombia\FamiliarColombiaCorrectionService;
 use App\Services\Informe202\FamiliarColombia\FamiliarColombiaErrorParser;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use RuntimeException;
@@ -28,6 +29,7 @@ class FamiliarColombiaCorreccionUploader extends Component
 
     public ?string $errorProceso = null;
 
+    #[Locked]
     public ?string $zipCorregidoPath = null;
 
     public ?string $zipCorregidoName = null;
@@ -62,17 +64,13 @@ class FamiliarColombiaCorreccionUploader extends Component
                     'max:51200',
                 ],
             ], [
-                'archivoZip.required' =>
-                    'Selecciona el ZIP original cargado.',
+                'archivoZip.required' => 'Selecciona el ZIP original cargado.',
 
-                'archivoErrores.required' =>
-                    'Selecciona el Excel de errores.',
+                'archivoErrores.required' => 'Selecciona el Excel de errores.',
 
-                'archivoZip.max' =>
-                    'El ZIP no puede superar 100 MB.',
+                'archivoZip.max' => 'El ZIP no puede superar 100 MB.',
 
-                'archivoErrores.max' =>
-                    'El Excel de errores no puede superar 50 MB.',
+                'archivoErrores.max' => 'El Excel de errores no puede superar 50 MB.',
             ]);
 
             $zipExtension = mb_strtolower(
@@ -109,7 +107,7 @@ class FamiliarColombiaCorreccionUploader extends Component
 
             $folder =
                 'informes-202/familiar-colombia-correccion/'
-                . Str::uuid();
+                .Str::uuid();
 
             Storage::disk('local')
                 ->makeDirectory($folder);
@@ -127,7 +125,7 @@ class FamiliarColombiaCorreccionUploader extends Component
             $errorsRelative =
                 $this->archivoErrores->storeAs(
                     $folder,
-                    'errores.' . $errorExtension,
+                    'errores.'.$errorExtension,
                     'local'
                 );
 
@@ -148,15 +146,13 @@ class FamiliarColombiaCorreccionUploader extends Component
 
                 errors: $parsed['errors'],
 
-                outputDirectory:
-                    Storage::disk('local')
-                        ->path($folder . '/salida'),
+                outputDirectory: Storage::disk('local')
+                    ->path($folder.'/salida'),
 
-                outputBaseName:
-                    pathinfo(
-                        $originalZipName,
-                        PATHINFO_FILENAME
-                    )
+                outputBaseName: pathinfo(
+                    $originalZipName,
+                    PATHINFO_FILENAME
+                )
             );
 
             $this->metadata =
@@ -184,7 +180,7 @@ class FamiliarColombiaCorreccionUploader extends Component
                     $originalZipName,
                     PATHINFO_FILENAME
                 )
-                . '.zip';
+                .'.zip';
 
             $this->zipCorregidoPath =
                 $result['output_zip'];
@@ -200,7 +196,7 @@ class FamiliarColombiaCorreccionUploader extends Component
 
             $this->errorProceso =
                 'No fue posible corregir el archivo: '
-                . $exception->getMessage();
+                .$exception->getMessage();
         } finally {
             $this->procesando = false;
         }

@@ -5,6 +5,7 @@ namespace App\Livewire\Informes;
 use App\Services\Resolucion1552\Resolucion1552SanitasExporter;
 use App\Support\Livewire\HandlesTemporaryUploads;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Throwable;
@@ -15,17 +16,31 @@ final class Resolucion1552SanitasUploader extends Component
     use WithFileUploads;
 
     public $archivo = null;
+
     public string $periodo = '';
+
     public bool $procesando = false;
+
     public bool $generado = false;
+
     public ?string $mensaje = null;
+
     public ?string $error = null;
+
     public array $resumen = [];
+
     public array $erroresValidacion = [];
+
     public array $advertencias = [];
+
+    #[Locked]
     public ?string $txtPath = null;
+
     public ?string $txtName = null;
+
+    #[Locked]
     public ?string $zipPath = null;
+
     public ?string $zipName = null;
 
     public function mount(): void
@@ -78,6 +93,7 @@ final class Resolucion1552SanitasUploader extends Component
             if (! ($result['success'] ?? false)) {
                 $this->error = 'El Excel contiene errores que deben corregirse antes de generar el ZIP.';
                 $this->mensaje = null;
+
                 return;
             }
 
@@ -89,7 +105,7 @@ final class Resolucion1552SanitasUploader extends Component
             $this->mensaje = 'El TXT y el ZIP de la Resolución 1552 de Sanitas fueron generados correctamente.';
         } catch (Throwable $exception) {
             report($exception);
-            $this->error = 'No fue posible procesar el archivo: ' . $exception->getMessage();
+            $this->error = 'No fue posible procesar el archivo: '.$exception->getMessage();
             $this->mensaje = null;
         } finally {
             $this->procesando = false;
@@ -100,6 +116,7 @@ final class Resolucion1552SanitasUploader extends Component
     {
         if (! is_string($this->zipPath) || $this->zipPath === '' || ! is_file($this->zipPath)) {
             $this->error = 'El ZIP ya no está disponible. Genera nuevamente el informe.';
+
             return null;
         }
 
@@ -110,6 +127,7 @@ final class Resolucion1552SanitasUploader extends Component
     {
         if (! is_string($this->txtPath) || $this->txtPath === '' || ! is_file($this->txtPath)) {
             $this->error = 'El TXT ya no está disponible. Genera nuevamente el informe.';
+
             return null;
         }
 

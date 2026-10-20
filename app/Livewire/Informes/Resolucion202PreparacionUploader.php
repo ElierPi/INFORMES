@@ -5,6 +5,7 @@ namespace App\Livewire\Informes;
 use App\Services\Informe202\Informe202PreparationService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -36,6 +37,7 @@ class Resolucion202PreparacionUploader extends Component
 
     public string $ipsSeleccionada = 'cidsma';
 
+    #[Locked]
     public ?string $zipPath = null;
 
     public ?string $zipName = null;
@@ -54,6 +56,7 @@ class Resolucion202PreparacionUploader extends Component
 
     public ?array $encabezadoDetectado = null;
 
+    #[Locked]
     public ?string $txtPath = null;
 
     public ?string $txtName = null;
@@ -124,7 +127,7 @@ class Resolucion202PreparacionUploader extends Component
 
             $folder =
                 'informes-202/preparacion/'
-                . Str::uuid();
+                .Str::uuid();
 
             Storage::disk('local')
                 ->makeDirectory($folder);
@@ -132,7 +135,7 @@ class Resolucion202PreparacionUploader extends Component
             $relativeInput =
                 $this->archivo->storeAs(
                     $folder,
-                    'entrada.' . $extension,
+                    'entrada.'.$extension,
                     'local'
                 );
 
@@ -151,8 +154,7 @@ class Resolucion202PreparacionUploader extends Component
                 inputPath: $absoluteInput,
                 extension: $extension,
                 destination: $this->destino,
-                cutoffDate:
-                    $this->fechaCorte !== ''
+                cutoffDate: $this->fechaCorte !== ''
                         ? $this->fechaCorte
                         : null
             );
@@ -229,10 +231,10 @@ class Resolucion202PreparacionUploader extends Component
                 $this->zipName = $names['zip'];
 
                 $txtRelativePath =
-                    $folder . '/' . $this->txtName;
+                    $folder.'/'.$this->txtName;
 
                 $zipRelativePath =
-                    $folder . '/' . $this->zipName;
+                    $folder.'/'.$this->zipName;
 
                 $service->generateFamiliarColombiaZip(
                     records: $result['records'],
@@ -258,7 +260,7 @@ class Resolucion202PreparacionUploader extends Component
                 $this->buildOutputName();
 
             $txtRelativePath =
-                $folder . '/' . $this->txtName;
+                $folder.'/'.$this->txtName;
 
             $txtAbsolutePath =
                 Storage::disk('local')->path(
@@ -270,14 +272,11 @@ class Resolucion202PreparacionUploader extends Component
                 outputPath: $txtAbsolutePath,
                 destination: $this->destino,
                 headerData: [
-                    'eps_code' =>
-                        $this->codigoEps,
+                    'eps_code' => $this->codigoEps,
 
-                    'start_date' =>
-                        $this->fechaInicial,
+                    'start_date' => $this->fechaInicial,
 
-                    'end_date' =>
-                        $this->fechaFinal,
+                    'end_date' => $this->fechaFinal,
                 ]
             );
 
@@ -295,7 +294,7 @@ class Resolucion202PreparacionUploader extends Component
 
             $this->errorProceso =
                 'No fue posible preparar el informe: '
-                . $exception->getMessage();
+                .$exception->getMessage();
         } finally {
             $this->procesando = false;
         }
@@ -320,8 +319,7 @@ class Resolucion202PreparacionUploader extends Component
             $this->txtName
                 ?? 'INFORME_202_LISTO.txt',
             [
-                'Content-Type' =>
-                    'text/plain; charset=UTF-8',
+                'Content-Type' => 'text/plain; charset=UTF-8',
             ]
         );
     }
@@ -345,8 +343,7 @@ class Resolucion202PreparacionUploader extends Component
             $this->zipName
                 ?? 'RESOLUCION_202.zip',
             [
-                'Content-Type' =>
-                    'application/zip',
+                'Content-Type' => 'application/zip',
             ]
         );
     }
@@ -425,59 +422,41 @@ class Resolucion202PreparacionUploader extends Component
     private function validationMessages(): array
     {
         return [
-            'archivo.required' =>
-                'Selecciona un Excel o TXT.',
+            'archivo.required' => 'Selecciona un Excel o TXT.',
 
-            'archivo.file' =>
-                'El archivo seleccionado no es válido.',
+            'archivo.file' => 'El archivo seleccionado no es válido.',
 
-            'archivo.mimes' =>
-                'Solo se permiten XLSX, XLS o TXT.',
+            'archivo.mimes' => 'Solo se permiten XLSX, XLS o TXT.',
 
-            'archivo.max' =>
-                'El archivo no puede superar 50 MB.',
+            'archivo.max' => 'El archivo no puede superar 50 MB.',
 
-            'destino.required' =>
-                'Selecciona la entidad destino.',
+            'destino.required' => 'Selecciona la entidad destino.',
 
-            'destino.in' =>
-                'La entidad destino no es válida.',
+            'destino.in' => 'La entidad destino no es válida.',
 
-            'fechaCorte.date_format' =>
-                'La fecha de corte debe usar AAAA-MM-DD.',
+            'fechaCorte.date_format' => 'La fecha de corte debe usar AAAA-MM-DD.',
 
-            'nitProteger.required' =>
-                'Escribe el NIT que debe llevar el archivo TXT de Proteger.',
+            'nitProteger.required' => 'Escribe el NIT que debe llevar el archivo TXT de Proteger.',
 
-            'nitProteger.regex' =>
-                'El NIT de Proteger debe contener entre 9 y 12 dígitos, sin puntos ni guiones.',
+            'nitProteger.regex' => 'El NIT de Proteger debe contener entre 9 y 12 dígitos, sin puntos ni guiones.',
 
-            'codigoEps.required' =>
-                'El código EPS es obligatorio para DUSAKAWI.',
+            'codigoEps.required' => 'El código EPS es obligatorio para DUSAKAWI.',
 
-            'fechaInicial.required' =>
-                'La fecha inicial es obligatoria para DUSAKAWI.',
+            'fechaInicial.required' => 'La fecha inicial es obligatoria para DUSAKAWI.',
 
-            'fechaInicial.date_format' =>
-                'La fecha inicial debe usar AAAA-MM-DD.',
+            'fechaInicial.date_format' => 'La fecha inicial debe usar AAAA-MM-DD.',
 
-            'fechaFinal.required' =>
-                'La fecha final es obligatoria para DUSAKAWI.',
+            'fechaFinal.required' => 'La fecha final es obligatoria para DUSAKAWI.',
 
-            'fechaFinal.date_format' =>
-                'La fecha final debe usar AAAA-MM-DD.',
+            'fechaFinal.date_format' => 'La fecha final debe usar AAAA-MM-DD.',
 
-            'fechaFinal.after_or_equal' =>
-                'La fecha final no puede ser anterior a la fecha inicial.',
+            'fechaFinal.after_or_equal' => 'La fecha final no puede ser anterior a la fecha inicial.',
 
-            'ipsSeleccionada.required' =>
-                'Selecciona la IPS que reporta.',
+            'ipsSeleccionada.required' => 'Selecciona la IPS que reporta.',
 
-            'ipsSeleccionada.in' =>
-                'La IPS seleccionada no es válida.',
+            'ipsSeleccionada.in' => 'La IPS seleccionada no es válida.',
 
-            'fechaCorte.required' =>
-                'La fecha final del periodo es obligatoria.',
+            'fechaCorte.required' => 'La fecha final del periodo es obligatoria.',
         ];
     }
 
@@ -541,9 +520,9 @@ class Resolucion202PreparacionUploader extends Component
         }
 
         return $nit
-            . '_'
-            . $period->format('mY')
-            . '.txt';
+            .'_'
+            .$period->format('mY')
+            .'.txt';
     }
 
     private function buildFamiliarColombiaNames(): array
@@ -576,12 +555,12 @@ class Resolucion202PreparacionUploader extends Component
 
         $baseName =
             $providerCode
-            . '_'
-            . $period->format('dmY');
+            .'_'
+            .$period->format('dmY');
 
         return [
-            'txt' => $baseName . '.txt',
-            'zip' => $baseName . '.zip',
+            'txt' => $baseName.'.txt',
+            'zip' => $baseName.'.zip',
         ];
     }
 
@@ -589,8 +568,7 @@ class Resolucion202PreparacionUploader extends Component
         mixed $archivo
     ): void {
         if (
-            ! $archivo instanceof
-                TemporaryUploadedFile
+            ! $archivo instanceof TemporaryUploadedFile
         ) {
             throw new RuntimeException(
                 'El archivo temporal ya no está disponible. Selecciónalo nuevamente.'

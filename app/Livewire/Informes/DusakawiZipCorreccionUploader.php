@@ -5,6 +5,7 @@ namespace App\Livewire\Informes;
 use App\Services\Informe202\Dusakawi\DusakawiZipCorrectionService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -30,6 +31,7 @@ final class DusakawiZipCorreccionUploader extends Component
 
     public ?string $errorProceso = null;
 
+    #[Locked]
     public ?string $zipCorregidoPath = null;
 
     public ?string $zipCorregidoName = null;
@@ -59,50 +61,49 @@ final class DusakawiZipCorreccionUploader extends Component
                 'max:51200',
             ],
 
-'archivoErrores' => [
-    'required',
-    'file',
-    'max:20480',
-    function (
-        string $attribute,
-        mixed $value,
-        \Closure $fail
-    ): void {
-        if (
-            ! $value instanceof
-                \Livewire\Features\SupportFileUploads\TemporaryUploadedFile
-        ) {
-            $fail(
-                'No fue posible recibir el archivo de errores.'
-            );
+            'archivoErrores' => [
+                'required',
+                'file',
+                'max:20480',
+                function (
+                    string $attribute,
+                    mixed $value,
+                    \Closure $fail
+                ): void {
+                    if (
+                        ! $value instanceof TemporaryUploadedFile
+                    ) {
+                        $fail(
+                            'No fue posible recibir el archivo de errores.'
+                        );
 
-            return;
-        }
+                        return;
+                    }
 
-        $extension = strtolower(
-            $value->getClientOriginalExtension()
-        );
+                    $extension = strtolower(
+                        $value->getClientOriginalExtension()
+                    );
 
-        if (
-            ! in_array(
-                $extension,
-                [
-                    'xlsx',
-                    'xls',
-                    'html',
-                    'htm',
-                    'txt',
-                ],
-                true
-            )
-        ) {
-            $fail(
-                'El archivo de errores debe ser '
-                . 'XLSX, XLS, HTML o TXT.'
-            );
-        }
-    },
-],
+                    if (
+                        ! in_array(
+                            $extension,
+                            [
+                                'xlsx',
+                                'xls',
+                                'html',
+                                'htm',
+                                'txt',
+                            ],
+                            true
+                        )
+                    ) {
+                        $fail(
+                            'El archivo de errores debe ser '
+                            .'XLSX, XLS, HTML o TXT.'
+                        );
+                    }
+                },
+            ],
 
             'fechaCorte' => [
                 'required',
@@ -114,20 +115,15 @@ final class DusakawiZipCorreccionUploader extends Component
     protected function messages(): array
     {
         return [
-            'archivoZip.required' =>
-                'Selecciona el ZIP original de Dusakawi.',
+            'archivoZip.required' => 'Selecciona el ZIP original de Dusakawi.',
 
-            'archivoZip.mimes' =>
-                'El informe original debe estar en formato ZIP.',
+            'archivoZip.mimes' => 'El informe original debe estar en formato ZIP.',
 
-            'archivoErrores.required' =>
-                'Selecciona el archivo de errores de Dusakawi.',
+            'archivoErrores.required' => 'Selecciona el archivo de errores de Dusakawi.',
 
-            'archivoErrores.mimes' =>
-                'El archivo de errores debe ser XLSX, XLS, HTML o TXT.',
+            'archivoErrores.mimes' => 'El archivo de errores debe ser XLSX, XLS, HTML o TXT.',
 
-            'fechaCorte.required' =>
-                'Selecciona la fecha de corte del informe.',
+            'fechaCorte.required' => 'Selecciona la fecha de corte del informe.',
         ];
     }
 
@@ -153,36 +149,36 @@ final class DusakawiZipCorreccionUploader extends Component
             );
 
             $folder = 'informes-202/dusakawi/'
-                . Str::uuid();
+                .Str::uuid();
 
             Storage::disk('local')
                 ->makeDirectory($folder);
-$nombreZipOriginal = basename(
-    $this->archivoZip->getClientOriginalName()
-);
+            $nombreZipOriginal = basename(
+                $this->archivoZip->getClientOriginalName()
+            );
 
-$nombreZipOriginal = preg_replace(
-    '/[^A-Za-z0-9._-]/',
-    '_',
-    $nombreZipOriginal
-) ?: 'DUSAKAWI.zip';
+            $nombreZipOriginal = preg_replace(
+                '/[^A-Za-z0-9._-]/',
+                '_',
+                $nombreZipOriginal
+            ) ?: 'DUSAKAWI.zip';
 
-if (
-    strtolower(
-        pathinfo(
-            $nombreZipOriginal,
-            PATHINFO_EXTENSION
-        )
-    ) !== 'zip'
-) {
-    $nombreZipOriginal .= '.zip';
-}
+            if (
+                strtolower(
+                    pathinfo(
+                        $nombreZipOriginal,
+                        PATHINFO_EXTENSION
+                    )
+                ) !== 'zip'
+            ) {
+                $nombreZipOriginal .= '.zip';
+            }
 
-$zipRelative = $this->guardarTemporal(
-    archivo: $this->archivoZip,
-    folder: $folder,
-    filename: $nombreZipOriginal
-);
+            $zipRelative = $this->guardarTemporal(
+                archivo: $this->archivoZip,
+                folder: $folder,
+                filename: $nombreZipOriginal
+            );
 
             $errorExtension = strtolower(
                 $this->archivoErrores
@@ -192,11 +188,10 @@ $zipRelative = $this->guardarTemporal(
             $errorRelative = $this->guardarTemporal(
                 archivo: $this->archivoErrores,
                 folder: $folder,
-                filename:
-                    'errores.' . $errorExtension
+                filename: 'errores.'.$errorExtension
             );
 
-            $outputRelative = $folder . '/salida';
+            $outputRelative = $folder.'/salida';
 
             Storage::disk('local')
                 ->makeDirectory($outputRelative);
@@ -246,23 +241,17 @@ $zipRelative = $this->guardarTemporal(
                 $result['valid'];
 
             $this->resumen = [
-                'archivo_interno' =>
-                    $result['internal_file'],
+                'archivo_interno' => $result['internal_file'],
 
-                'registros_leidos' =>
-                    $result['total_records'],
+                'registros_leidos' => $result['total_records'],
 
-                'errores_reportados' =>
-                    $result['total_errors'],
+                'errores_reportados' => $result['total_errors'],
 
-                'celdas_corregidas' =>
-                    count($this->correcciones),
+                'celdas_corregidas' => count($this->correcciones),
 
-                'pendientes' =>
-                    count($this->pendientes),
+                'pendientes' => count($this->pendientes),
 
-                'ya_validos' =>
-                    count($this->validos),
+                'ya_validos' => count($this->validos),
             ];
 
             $this->procesado = true;
@@ -273,7 +262,7 @@ $zipRelative = $this->guardarTemporal(
 
             $this->errorProceso =
                 'No fue posible procesar los archivos: '
-                . $exception->getMessage();
+                .$exception->getMessage();
 
             $this->mensaje = null;
         } finally {
@@ -281,28 +270,28 @@ $zipRelative = $this->guardarTemporal(
         }
     }
 
-public function descargar(): StreamedResponse
-{
-    if (
-        $this->zipCorregidoPath === null
-        || ! Storage::disk('local')
-            ->exists($this->zipCorregidoPath)
-    ) {
-        throw new RuntimeException(
-            'El ZIP corregido ya no está disponible. '
-            . 'Procesa nuevamente los archivos.'
+    public function descargar(): StreamedResponse
+    {
+        if (
+            $this->zipCorregidoPath === null
+            || ! Storage::disk('local')
+                ->exists($this->zipCorregidoPath)
+        ) {
+            throw new RuntimeException(
+                'El ZIP corregido ya no está disponible. '
+                .'Procesa nuevamente los archivos.'
+            );
+        }
+
+        return Storage::disk('local')->download(
+            $this->zipCorregidoPath,
+            $this->zipCorregidoName
+                ?? 'DUSAKAWI_CORREGIDO.zip',
+            [
+                'Content-Type' => 'application/zip',
+            ]
         );
     }
-
-    return Storage::disk('local')->download(
-        $this->zipCorregidoPath,
-        $this->zipCorregidoName
-            ?? 'DUSAKAWI_CORREGIDO.zip',
-        [
-            'Content-Type' => 'application/zip',
-        ]
-    );
-}
 
     private function validarTemporal(
         mixed $file,
@@ -311,7 +300,7 @@ public function descargar(): StreamedResponse
         if (! $file instanceof TemporaryUploadedFile) {
             throw new RuntimeException(
                 "No fue posible recibir el {$label}. "
-                . 'Vuelve a seleccionarlo.'
+                .'Vuelve a seleccionarlo.'
             );
         }
 
