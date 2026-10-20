@@ -6,6 +6,7 @@ use App\Services\Resolucion1604\FamiliarColombia\Resolucion1604FamiliarExporter;
 use App\Support\Livewire\HandlesTemporaryUploads;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Throwable;
@@ -16,16 +17,28 @@ final class Resolucion1604FamiliarUploader extends Component
     use WithFileUploads;
 
     public $archivo = null;
+
     public string $periodo = '';
+
     public bool $procesando = false;
+
     public bool $generado = false;
+
     public ?string $mensaje = null;
+
     public ?string $error = null;
+
     public array $resumen = [];
+
     public array $erroresValidacion = [];
+
     public array $advertencias = [];
+
+    #[Locked]
     public ?string $txtPath = null;
+
     public ?string $txtName = null;
+
     public ?string $hoja = null;
 
     public function mount(): void
@@ -81,6 +94,7 @@ final class Resolucion1604FamiliarUploader extends Component
             if (! ($result['success'] ?? false)) {
                 $this->error = 'El Excel contiene errores estructurales que deben corregirse antes de generar el TXT.';
                 $this->mensaje = null;
+
                 return;
             }
 
@@ -105,6 +119,7 @@ final class Resolucion1604FamiliarUploader extends Component
     {
         if (! $this->generado || ! is_string($this->txtPath) || ! is_file($this->txtPath)) {
             $this->error = 'El TXT ya no está disponible. Genera nuevamente el informe.';
+
             return null;
         }
 

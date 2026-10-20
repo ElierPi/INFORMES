@@ -6,6 +6,7 @@ use App\Services\Gestantes\GestantesLogsParser;
 use App\Services\Gestantes\GestantesTxtErrorCorrectionService;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use RuntimeException;
@@ -24,27 +25,40 @@ class GestantesCorreccionUploader extends Component
 
     public $archivoErrores;
 
+    #[Locked]
     public ?string $informePath = null;
+
+    #[Locked]
     public ?string $erroresPath = null;
 
     public array $parsedErrors = [];
+
     public array $metadata = [];
 
     public int $totalErrors = 0;
+
     public int $automaticErrors = 0;
+
     public int $manualErrors = 0;
 
     public bool $analyzed = false;
+
     public bool $corrected = false;
 
     public array $changes = [];
+
     public array $manualCorrections = [];
 
     public int $correctedCount = 0;
+
     public int $pendingCount = 0;
 
+    #[Locked]
     public ?string $generatedTxtPath = null;
+
+    #[Locked]
     public ?string $generatedZipPath = null;
+
     public bool $artifactsGenerated = false;
 
     public function analyze(
@@ -66,14 +80,10 @@ class GestantesCorreccionUploader extends Component
                 'max:10240',
             ],
         ], [
-            'archivoInforme.required' =>
-                'Debes seleccionar el ZIP que generó Gestante semanal.',
-            'archivoErrores.required' =>
-                'Debes seleccionar el archivo de errores SIGIRES.',
-            'archivoInforme.mimes' =>
-                'El informe debe ser el ZIP generado por Gestante semanal.',
-            'archivoErrores.mimes' =>
-                'El archivo de errores debe ser XLS o XLSX.',
+            'archivoInforme.required' => 'Debes seleccionar el ZIP que generó Gestante semanal.',
+            'archivoErrores.required' => 'Debes seleccionar el archivo de errores SIGIRES.',
+            'archivoInforme.mimes' => 'El informe debe ser el ZIP generado por Gestante semanal.',
+            'archivoErrores.mimes' => 'El archivo de errores debe ser XLS o XLSX.',
         ]);
 
         try {

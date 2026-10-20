@@ -5,6 +5,7 @@ namespace App\Livewire\Informes;
 use App\Services\Resolucion1604\Dusakawi\Resolucion1604DusakawiCorrectionService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -16,16 +17,28 @@ final class Resolucion1604DusakawiCorrectionUploader extends Component
     use WithFileUploads;
 
     public $archivoInforme = null;
+
     public $archivoErrores = null;
+
     public bool $procesando = false;
+
     public bool $generado = false;
+
     public ?string $mensaje = null;
+
     public ?string $error = null;
+
     public array $resumen = [];
+
     public array $auditoria = [];
+
     public array $pendientes = [];
+
+    #[Locked]
     public ?string $outputPath = null;
+
     public ?string $outputName = null;
+
     public ?string $lineaControl = null;
 
     public function corregir(Resolucion1604DusakawiCorrectionService $service): void
@@ -99,6 +112,7 @@ final class Resolucion1604DusakawiCorrectionUploader extends Component
     {
         if (! $this->generado || ! is_string($this->outputPath) || ! is_file($this->outputPath)) {
             $this->error = 'El TXT corregido ya no está disponible. Procesa nuevamente los archivos.';
+
             return null;
         }
 

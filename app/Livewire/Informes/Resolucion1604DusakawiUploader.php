@@ -5,6 +5,7 @@ namespace App\Livewire\Informes;
 use App\Services\Resolucion1604\Dusakawi\Resolucion1604DusakawiExporter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -16,16 +17,28 @@ final class Resolucion1604DusakawiUploader extends Component
     use WithFileUploads;
 
     public $archivo = null;
+
     public string $periodo = '2026-07';
+
     public bool $procesando = false;
+
     public bool $generado = false;
+
     public ?string $mensaje = null;
+
     public ?string $error = null;
+
     public array $resumen = [];
+
     public array $erroresValidacion = [];
+
     public array $advertencias = [];
+
+    #[Locked]
     public ?string $txtPath = null;
+
     public ?string $txtName = null;
+
     public ?string $lineaControl = null;
 
     public function generar(Resolucion1604DusakawiExporter $exporter): void
@@ -80,6 +93,7 @@ final class Resolucion1604DusakawiUploader extends Component
             if (! ($result['success'] ?? false)) {
                 $this->error = 'El Excel contiene errores estructurales que impiden generar el TXT.';
                 $this->mensaje = null;
+
                 return;
             }
 
@@ -101,6 +115,7 @@ final class Resolucion1604DusakawiUploader extends Component
     {
         if (! $this->generado || ! is_string($this->txtPath) || ! is_file($this->txtPath)) {
             $this->error = 'El TXT ya no está disponible. Genera nuevamente el informe.';
+
             return null;
         }
 

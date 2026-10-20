@@ -6,6 +6,7 @@ use App\Services\Resolucion1604\FamiliarColombia\Resolucion1604FamiliarCorrectio
 use App\Support\Livewire\HandlesTemporaryUploads;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Throwable;
@@ -16,15 +17,26 @@ final class Resolucion1604FamiliarCorrectionUploader extends Component
     use WithFileUploads;
 
     public $archivoInforme = null;
+
     public $archivoErrores = null;
+
     public bool $procesando = false;
+
     public bool $corregido = false;
+
     public ?string $mensaje = null;
+
     public ?string $error = null;
+
+    #[Locked]
     public ?string $txtPath = null;
+
     public ?string $txtName = null;
+
     public array $resumen = [];
+
     public array $auditoria = [];
+
     public array $pendientesManuales = [];
 
     protected function rules(): array
@@ -94,6 +106,7 @@ final class Resolucion1604FamiliarCorrectionUploader extends Component
     {
         if (! $this->corregido || ! is_string($this->txtPath) || ! is_file($this->txtPath)) {
             $this->error = 'El TXT corregido ya no está disponible. Procesa nuevamente los archivos.';
+
             return null;
         }
 
@@ -108,6 +121,7 @@ final class Resolucion1604FamiliarCorrectionUploader extends Component
     {
         if ($this->pendientesManuales === []) {
             $this->error = 'No hay errores sin regla automática para descargar.';
+
             return null;
         }
 

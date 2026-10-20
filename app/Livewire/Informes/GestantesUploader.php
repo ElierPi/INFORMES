@@ -8,6 +8,7 @@ use App\Services\Gestantes\GestantesTxtGenerator;
 use App\Services\Gestantes\GestantesValidationService;
 use App\Services\Gestantes\GestantesZipGenerator;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use RuntimeException;
@@ -21,21 +22,31 @@ class GestantesUploader extends Component
     public $archivo;
 
     public array $errorsReport = [];
+
     public array $summary = [];
+
     public bool $analyzed = false;
 
+    #[Locked]
     public ?string $uploadedPath = null;
+
+    #[Locked]
     public ?string $correctedFile = null;
+
     public ?string $correctedDownloadName = null;
 
     public array $corrections = [];
+
     public int $totalCorrections = 0;
 
     /**
      * Rutas relativas en storage local.
      * Se generan únicamente cuando el Excel corregido queda válido.
      */
+    #[Locked]
     public ?string $txtPath = null;
+
+    #[Locked]
     public ?string $zipPath = null;
 
     /**
@@ -304,8 +315,7 @@ class GestantesUploader extends Component
             $this->correctedFile,
             $this->correctedDownloadName ?: basename($this->correctedFile),
             [
-                'Content-Type' =>
-                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             ]
         );
     }

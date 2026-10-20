@@ -5,6 +5,7 @@ namespace App\Livewire\Informes;
 use App\Services\GestanteMensualSigiresService;
 use App\Services\GestantePrestadorRepository;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -14,15 +15,26 @@ class GestanteMensualUploader extends Component
     use WithFileUploads;
 
     public $archivo;
+
     public string $periodo = '';
+
     public string $codigoHabilitacion = '444300063502';
+
     public string $prestadorSeleccionado = '444300063502';
+
     public array $prestadores = [];
+
     public bool $mostrarNuevoPrestador = false;
+
     public string $nuevoPrestadorNombre = '';
+
     public string $nuevoPrestadorCodigo = '';
+
     public ?string $prestadorMessage = null;
+
     public ?string $errorMessage = null;
+
+    #[Locked]
     public ?array $resultado = null;
 
     public function mount(GestantePrestadorRepository $repository): void
@@ -32,7 +44,7 @@ class GestanteMensualUploader extends Component
         if (collect($this->prestadores)->contains(fn ($p) => ($p['code'] ?? '') === '444300063502')) {
             $this->prestadorSeleccionado = '444300063502';
             $this->codigoHabilitacion = '444300063502';
-        } elseif (!empty($this->prestadores)) {
+        } elseif (! empty($this->prestadores)) {
             $this->prestadorSeleccionado = (string) $this->prestadores[0]['code'];
             $this->codigoHabilitacion = $this->prestadorSeleccionado;
         }
@@ -42,6 +54,7 @@ class GestanteMensualUploader extends Component
     {
         if ($value === '__nuevo__') {
             $this->mostrarNuevoPrestador = true;
+
             return;
         }
         $this->mostrarNuevoPrestador = false;
@@ -95,10 +108,13 @@ class GestanteMensualUploader extends Component
         $this->reset(['errorMessage', 'resultado']);
         if ($this->prestadorSeleccionado === '__nuevo__') {
             $this->errorMessage = 'Guarde o seleccione una IPS antes de preparar el archivo.';
+
             return;
         }
         $selected = $repository->findByCode($this->prestadorSeleccionado);
-        if ($selected) $this->codigoHabilitacion = $selected['code'];
+        if ($selected) {
+            $this->codigoHabilitacion = $selected['code'];
+        }
 
         $this->validate([
             'archivo' => ['required', 'file', 'mimes:xlsx', 'max:30720'],
@@ -114,7 +130,9 @@ class GestanteMensualUploader extends Component
             $stored = $this->archivo->storeAs('gestante-mensual/entradas', uniqid('gestante_', true).'.xlsx', 'local');
             $inputPath = Storage::disk('local')->path($stored);
             $this->resultado = $service->preparar($inputPath, $this->periodo, $this->codigoHabilitacion);
-            if ($selected) $this->resultado['prestador'] = $selected['name'];
+            if ($selected) {
+                $this->resultado['prestador'] = $selected['name'];
+            }
         } catch (\Throwable $e) {
             $this->errorMessage = 'No fue posible preparar el informe mensual de gestantes: '.$e->getMessage();
         }
@@ -122,10 +140,12 @@ class GestanteMensualUploader extends Component
 
     public function descargar(): ?BinaryFileResponse
     {
-        if (!$this->resultado || empty($this->resultado['zip_path']) || !is_file($this->resultado['zip_path'])) {
+        if (! $this->resultado || empty($this->resultado['zip_path']) || ! is_file($this->resultado['zip_path'])) {
             $this->errorMessage = 'Primero debe procesar un archivo válido.';
+
             return null;
         }
+
         return response()->download($this->resultado['zip_path'], $this->resultado['download_name']);
     }
 
